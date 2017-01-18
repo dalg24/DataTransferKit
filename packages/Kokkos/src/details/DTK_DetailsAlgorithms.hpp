@@ -21,6 +21,8 @@ void expand( Box &box, Point const &point );
 void expand( Box &box, Box const &other );
 // check if two axis-aligned bounding boxes overlap
 bool overlaps( Box const &box, Box const &other );
+// calculate the centroid of a box
+void centroid( Box const &box, Point &c );
 
 } // end namespace Details
 } // end namespace DataTransferKit

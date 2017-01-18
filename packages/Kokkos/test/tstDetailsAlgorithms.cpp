@@ -104,3 +104,13 @@ TEUCHOS_UNIT_TEST( DetailsAlgorithms, expand )
     TEST_ASSERT( checkBoxesEquality(
         box, dtk::Box( {-1.0, 11.0, -1.0, 11.0, -1.0, 11.0} ) ) );
 }
+
+TEUCHOS_UNIT_TEST( DetailsAlgorithms, centroid )
+{
+    dtk::Box box( {-10.0, 0.0, 0.0, 10.0, 10.0, 20.0} );
+    dtk::Point centroid;
+    dtk::centroid( box, centroid );
+    TEST_EQUALITY( centroid[0], -5.0 );
+    TEST_EQUALITY( centroid[1], 5.0 );
+    TEST_EQUALITY( centroid[2], 15.0 );
+}
