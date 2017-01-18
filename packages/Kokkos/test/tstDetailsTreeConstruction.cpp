@@ -7,56 +7,77 @@
 #include <sstream>
 #include <vector>
 
+namespace dtk = DataTransferKit::Details;
+
 TEUCHOS_UNIT_TEST( DetailsBVH, indirect_sort )
 {
     // need a functionality that sort objects based on their Morton code and
     // also returns the indices in the original configuration
 
-    // dummy unsorted morton codes and corresponding sorted indices as reference
+    // dummy unsorted Morton codes and corresponding sorted indices as reference
     // solution
-    std::vector<unsigned int> x = {2, 1, 4, 3};
+    std::vector<unsigned int> k = {2, 1, 4, 3};
     std::vector<int> ref = {1, 0, 3, 2};
     // distribute ids to unsorted objects
-    int const n = x.size();
+    int const n = k.size();
     std::vector<int> ids( n );
     std::iota( ids.begin(), ids.end(), 0 );
     // sort morton codes and object ids
-    DataTransferKit::Details::sortObjects( x.data(), ids.data(), n );
+    dtk::sortObjects( k.data(), ids.data(), n );
     // check that they are sorted
-    TEST_ASSERT( std::is_sorted( x.begin(), x.end() ) );
+    TEST_ASSERT( std::is_sorted( k.begin(), k.end() ) );
     // check that ids are properly ordered
     for ( int i = 0; i < n; ++i )
         TEST_EQUALITY( ids[i], ref[i] );
 }
 
-#define __clz( x ) __builtin_clz( x )
-
 TEUCHOS_UNIT_TEST( DetailsBVH, number_of_leading_zero_bits )
 {
-    // this is not a proper test
-    // it turns out NVDIA's implementation of int __clz(unsigned int x) is
-    // slightly different than GCC __builtin_clz
-    // this caused a bug in an early implementation of the function that compute
-    // the common prefixes betwwen two keys (NB: when i == j)
-    std::cout << "__clz\n";
-    for ( int i = 0; i < 10; ++i )
-        std::cout << i << "  " << std::bitset<32>( i ) << "  " << __clz( i )
-                  << "\n";
-    std::cout << "NOTE: when x is 0, the result of __clz(x) is undefined\n";
+    TEST_EQUALITY( dtk::countLeadingZeros( 0 ), 32 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 1 ), 31 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 2 ), 30 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 3 ), 30 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 4 ), 29 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 5 ), 29 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 6 ), 29 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 7 ), 29 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 8 ), 28 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 9 ), 28 );
+    // bitwise exclusive OR operator to compare bits
+    TEST_EQUALITY( dtk::countLeadingZeros( 1 ^ 0 ), 31 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 2 ^ 0 ), 30 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 2 ^ 1 ), 30 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 3 ^ 0 ), 30 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 3 ^ 1 ), 30 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 3 ^ 2 ), 31 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 4 ^ 0 ), 29 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 4 ^ 1 ), 29 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 4 ^ 2 ), 29 );
+    TEST_EQUALITY( dtk::countLeadingZeros( 4 ^ 3 ), 29 );
+}
 
-    std::cout << "common prefix __clz(x^y)\n";
-    std::cout << " "
-              << "    ";
-    for ( int j = 0; j < 10; ++j )
-        std::cout << " " << j << "  ";
-    std::cout << "\n";
-    for ( int i = 0; i < 10; ++i )
-    {
-        std::cout << i << "    ";
-        for ( int j = 0; j < i; ++j )
-            std::cout << __clz( i ^ j ) << "  ";
-        std::cout << "\n";
-    }
+TEUCHOS_UNIT_TEST( DetailsBVH, common_prefix )
+{
+    // NOTE: Morton codes below are **not** unique
+    std::vector<unsigned int> const fi = {
+        0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144,
+    };
+    int const n = fi.size();
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 0, 0 ), 32 + 32 );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 0, 1 ), 31 );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 1, 0 ), 31 );
+    // duplicate Morton codes
+    TEST_EQUALITY( fi[1], 1 );
+    TEST_EQUALITY( fi[1], fi[2] );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 1, 1 ), 64 );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 1, 2 ), 32 + 30 );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 2, 1 ), 62 );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 2, 2 ), 64 );
+    // by definition \delta(i, j) = -1 when j \notin [0, n-1]
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 0, -1 ), -1 );
+    TEST_EQUALITY( n, 13 );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 12, 12 ), 64 );
+    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 12, 13 ), -1 );
 }
 
 TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
@@ -78,36 +99,6 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
     std::vector<int> sorted_indices( n );
     std::iota( sorted_indices.begin(), sorted_indices.end(), 0 );
 
-    std::vector<DataTransferKit::LeafNode> leaf_nodes( n );
-    std::vector<DataTransferKit::InternalNode> internal_nodes( n - 1 );
-    DataTransferKit::Details::generateHierarchy(
-        sorted_morton_codes.data(), sorted_indices.data(), n, leaf_nodes.data(),
-        internal_nodes.data() );
-
-    DataTransferKit::InternalNode *root = internal_nodes.data();
-    TEST_ASSERT( root->parent == nullptr );
-
-    std::function<void( DataTransferKit::Node *, std::ostream & )>
-        traverseRecursive;
-    traverseRecursive = [&leaf_nodes, &internal_nodes, &traverseRecursive](
-        DataTransferKit::Node *node, std::ostream &os ) {
-        if ( auto leaf = dynamic_cast<DataTransferKit::LeafNode *>( node ) )
-        {
-            os << "L" << leaf - leaf_nodes.data();
-        }
-        else
-        {
-            auto internal =
-                dynamic_cast<DataTransferKit::InternalNode *>( node );
-            os << "I" << internal - internal_nodes.data();
-            traverseRecursive( internal->childA, os );
-            traverseRecursive( internal->childB, os );
-        }
-    };
-    std::ostringstream sol;
-    traverseRecursive( root, sol );
-    std::cout << "sol=" << sol.str() << "\n";
-
     // reference solution for a recursive traversal from top to bottom
     // starting from root, visiting first the left child and then the right one
     std::ostringstream ref;
@@ -127,6 +118,39 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
         << "L6"
         << "L7";
     std::cout << "ref=" << ref.str() << "\n";
+
+    // hierarchy generation
+    std::vector<DataTransferKit::LeafNode> leaf_nodes( n );
+    std::vector<DataTransferKit::InternalNode> internal_nodes( n - 1 );
+    std::function<void( DataTransferKit::Node *, std::ostream & )>
+        traverseRecursive;
+    traverseRecursive = [&leaf_nodes, &internal_nodes, &traverseRecursive](
+        DataTransferKit::Node *node, std::ostream &os ) {
+        if ( auto leaf = dynamic_cast<DataTransferKit::LeafNode *>( node ) )
+        {
+            os << "L" << leaf - leaf_nodes.data();
+        }
+        else
+        {
+            auto internal =
+                dynamic_cast<DataTransferKit::InternalNode *>( node );
+            os << "I" << internal - internal_nodes.data();
+            traverseRecursive( internal->childA, os );
+            traverseRecursive( internal->childB, os );
+        }
+    };
+
+    DataTransferKit::Details::generateHierarchy(
+        sorted_morton_codes.data(), sorted_indices.data(), n, leaf_nodes.data(),
+        internal_nodes.data() );
+
+    DataTransferKit::Node *root =
+        dynamic_cast<DataTransferKit::Node *>( internal_nodes.data() );
+    TEST_ASSERT( root->parent == nullptr );
+
+    std::ostringstream sol;
+    traverseRecursive( root, sol );
+    std::cout << "sol=" << sol.str() << "\n";
 
     TEST_EQUALITY( sol.str().compare( ref.str() ), 0 );
 }
