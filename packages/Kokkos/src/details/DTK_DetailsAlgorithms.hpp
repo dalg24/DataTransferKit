@@ -11,13 +11,13 @@ namespace Details
 using Point = std::array<double, 3>;
 using Box = AABB;
 
-// ditance point-point
+// distance point-point
 double distance( Point const &a, Point const &b );
-// ditance point-box
+// distance point-box
 double distance( Point const &point, Box const &box );
-// expand an axis-aligned bounding box using a point
+// expand an axis-aligned bounding box to include a point
 void expand( Box &box, Point const &point );
-// expand an axis-aligned bounding box using another box
+// expand an axis-aligned bounding box to include another box
 void expand( Box &box, Box const &other );
 // check if two axis-aligned bounding boxes overlap
 bool overlaps( Box const &box, Box const &other );
