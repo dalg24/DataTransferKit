@@ -39,7 +39,7 @@ void expand( Box &box, Point const &point )
     {
         if ( box[2 * d + 0] > point[d] )
             box[2 * d + 0] = point[d];
-        if ( box[2 * d + 1] < point[d] )
+        if ( point[d] > box[2 * d + 1] )
             box[2 * d + 1] = point[d];
     }
 }
