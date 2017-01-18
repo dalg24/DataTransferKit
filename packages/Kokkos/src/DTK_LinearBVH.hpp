@@ -73,13 +73,13 @@ struct AABB
 struct BVH
 {
     BVH( AABB const *boundingBoxes, int n );
-    AABB getAABB( Node *node ) const;
-    bool isLeaf( Node *node ) const;
-    int getObjectIdx( Node *node ) const;
-    Node *getLeftChild( Node *node );
-    Node const *getLeftChild( Node *node ) const;
-    Node *getRightChild( Node *node );
-    Node const *getRightChild( Node *node ) const;
+    AABB getAABB( Node const *node ) const;
+    bool isLeaf( Node const *node ) const;
+    int getObjectIdx( Node const *node ) const;
+    Node *getLeftChild( Node const *node );
+    Node const *getLeftChild( Node const *node ) const;
+    Node *getRightChild( Node const *node );
+    Node const *getRightChild( Node const *node ) const;
     Node *getRoot();
     Node const *getRoot() const;
     std::vector<LeafNode> _leaf_nodes;
