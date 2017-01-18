@@ -1,3 +1,4 @@
+#include <details/DTK_DetailsAlgorithms.hpp>
 #include <details/DTK_DetailsTreeConstruction.hpp>
 
 #include <Teuchos_UnitTestHarness.hpp>
@@ -8,6 +9,54 @@
 #include <vector>
 
 namespace dtk = DataTransferKit::Details;
+
+TEUCHOS_UNIT_TEST( DetailsBVH, morton_codes )
+{
+    std::vector<dtk::Point> points = {
+        dtk::Point( {0.0, 0.0, 0.0} ),
+        dtk::Point( {0.25, 0.75, 0.25} ),
+        dtk::Point( {0.75, 0.25, 0.25} ),
+        dtk::Point( {0.75, 0.75, 0.25} ),
+        dtk::Point( {1.33, 2.33, 3.33} ),
+        dtk::Point( {1.66, 2.66, 3.66} ),
+        dtk::Point( {1024.0, 1024.0, 1024.0} ),
+    };
+    int const n = points.size();
+    // lower left front corner corner of the octant the points fall in
+    std::vector<std::array<unsigned int, 3>> anchors = {
+        {0, 0, 0}, {0, 0, 0}, {0, 0, 0},         {0, 0, 0},
+        {1, 2, 3}, {1, 2, 3}, {1023, 1023, 1023}};
+    auto fun = []( std::array<unsigned int, 3> const &array ) {
+        unsigned int i = std::get<0>( array );
+        unsigned int j = std::get<1>( array );
+        unsigned int k = std::get<2>( array );
+        return 4 * dtk::expandBits( i ) + 2 * dtk::expandBits( j ) +
+               dtk::expandBits( k );
+    };
+    std::vector<unsigned int> ref( n,
+                                   std::numeric_limits<unsigned int>::max() );
+    for ( int i = 0; i < n; ++i )
+        ref[i] = fun( anchors[i] );
+    // using points rather than boxes for convenience here but still have to
+    // build the axis-aligned bounding boxes around them
+    std::vector<dtk::Box> boxes( n );
+    for ( int i = 0; i < n; ++i )
+        dtk::expand( boxes[i], points[i] );
+
+    dtk::Box scene;
+    dtk::calculateBoundingBoxOfTheScene( boxes.data(), n, scene );
+    for ( int d = 0; d < 3; ++d )
+    {
+        TEST_EQUALITY( scene[2 * d + 0], 0.0 );
+        TEST_EQUALITY( scene[2 * d + 1], 1024.0 );
+    }
+
+    std::vector<unsigned int> morton_codes(
+        n, std::numeric_limits<unsigned int>::max() );
+    dtk::assignMortonCodes( boxes.data(), morton_codes.data(), n, scene );
+    for ( int i = 0; i < n; ++i )
+        TEST_EQUALITY( morton_codes[i], ref[i] );
+}
 
 TEUCHOS_UNIT_TEST( DetailsBVH, indirect_sort )
 {
