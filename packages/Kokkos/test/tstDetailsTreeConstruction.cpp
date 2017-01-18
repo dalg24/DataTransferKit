@@ -26,10 +26,10 @@ TEUCHOS_UNIT_TEST( DetailsBVH, morton_codes )
     std::vector<std::array<unsigned int, 3>> anchors = {
         {0, 0, 0}, {0, 0, 0}, {0, 0, 0},         {0, 0, 0},
         {1, 2, 3}, {1, 2, 3}, {1023, 1023, 1023}};
-    auto fun = []( std::array<unsigned int, 3> const &array ) {
-        unsigned int i = std::get<0>( array );
-        unsigned int j = std::get<1>( array );
-        unsigned int k = std::get<2>( array );
+    auto fun = []( std::array<unsigned int, 3> const &anchor ) {
+        unsigned int i = std::get<0>( anchor );
+        unsigned int j = std::get<1>( anchor );
+        unsigned int k = std::get<2>( anchor );
         return 4 * dtk::expandBits( i ) + 2 * dtk::expandBits( j ) +
                dtk::expandBits( k );
     };
