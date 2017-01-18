@@ -8,9 +8,9 @@ namespace Details
 
 bool checkOverlap( AABB const &a, AABB const &b ) { return overlaps( a, b ); }
 
-// TODO: fix BVH const correctness and make argument const
-void traverseRecursive( CollisionList &list, BVH &bvh, const AABB &queryAABB,
-                        int queryObjectIdx, Node *node )
+void traverseRecursive( CollisionList &list, BVH const &bvh,
+                        const AABB &queryAABB, int queryObjectIdx,
+                        Node const *node )
 {
     // Bounding box overlaps the query => process node.
     if ( checkOverlap( bvh.getAABB( node ), queryAABB ) )
@@ -22,30 +22,30 @@ void traverseRecursive( CollisionList &list, BVH &bvh, const AABB &queryAABB,
         // Internal node => recurse to children.
         else
         {
-            Node *childL = bvh.getLeftChild( node );
-            Node *childR = bvh.getRightChild( node );
+            Node const *childL = bvh.getLeftChild( node );
+            Node const *childR = bvh.getRightChild( node );
             traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childL );
             traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childR );
         }
     }
 }
 
-void traverseIterative( CollisionList &list, BVH &bvh, AABB &queryAABB,
-                        int queryObjectIdx )
+void traverseIterative( CollisionList &list, BVH const &bvh,
+                        AABB const &queryAABB, int queryObjectIdx )
 {
     // Allocate traversal stack from thread-local memory,
     // and push NULL to indicate that there are no postponed nodes.
-    Node *stack[64];
-    Node **stackPtr = stack;
+    Node const *stack[64];
+    Node const **stackPtr = stack;
     *stackPtr++ = NULL; // push
 
     // Traverse nodes starting from the root.
-    Node *node = bvh.getRoot();
+    Node const *node = bvh.getRoot();
     do
     {
         // Check each child node for overlap.
-        Node *childL = bvh.getLeftChild( node );
-        Node *childR = bvh.getRightChild( node );
+        Node const *childL = bvh.getLeftChild( node );
+        Node const *childR = bvh.getRightChild( node );
         bool overlapL = ( checkOverlap( queryAABB, bvh.getAABB( childL ) ) );
         bool overlapR = ( checkOverlap( queryAABB, bvh.getAABB( childR ) ) );
 
