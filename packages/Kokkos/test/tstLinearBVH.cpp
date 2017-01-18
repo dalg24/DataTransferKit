@@ -349,8 +349,7 @@ TEUCHOS_UNIT_TEST( LinearBVH, rtree )
         // The coordinates of the points in the structured cloud (source) are
         // accessed directly and we use Boost to compute the distance.
         // This will need to be cleaned up, possibly with a templated tree
-        // traversal
-        // with a predicate.
+        // traversal with a predicate.
         std::list<std::pair<int, double>> sol;
         DataTransferKit::AABB aabb;
         aabb._minmax = {

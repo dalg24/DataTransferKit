@@ -62,7 +62,7 @@ int clz( uint32_t x )
 // it turns out NVDIA's implementation of int __clz(unsigned int x) is
 // slightly different than GCC __builtin_clz
 // this caused a bug in an early implementation of the function that compute
-// the common prefixes betwwen two keys (NB: when i == j)
+// the common prefixes between two keys (NB: when i == j)
 int countLeadingZeros( unsigned int x )
 {
 #if defined __GNUC__
