@@ -23,10 +23,11 @@ struct CollisionList
     void add( int i, int j ) { _ij.emplace_back( i, j ); }
     std::vector<std::pair<int, int>> _ij;
 };
-void traverseRecursive( CollisionList &list, BVH &bvh, const AABB &queryAABB,
-                        int queryObjectIdx, Node *node );
-void traverseIterative( CollisionList &list, BVH &bvh, AABB &queryAABB,
-                        int queryObjectIdx );
+void traverseRecursive( CollisionList &list, BVH const &bvh,
+                        AABB const &queryAABB, int queryObjectIdx,
+                        Node const *node );
+void traverseIterative( CollisionList &list, BVH const &bvh,
+                        AABB const &queryAABB, int queryObjectIdx );
 // TODO: get rid of this guy
 bool checkOverlap( AABB const &a, AABB const &b );
 

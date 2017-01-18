@@ -39,7 +39,7 @@ BVH::BVH( AABB const *boundingBoxes, int n )
     Details::calculateBoundingBoxes( _leaf_nodes.data(), _internal_nodes.data(),
                                      n, _bounding_boxes.data() );
 }
-AABB BVH::getAABB( Node *node ) const
+AABB BVH::getAABB( Node const *node ) const
 {
     int idx = -1;
     if ( isLeaf( node ) )
@@ -54,27 +54,27 @@ AABB BVH::getAABB( Node *node ) const
     }
     return _bounding_boxes[idx];
 }
-bool BVH::isLeaf( Node *node ) const
+bool BVH::isLeaf( Node const *node ) const
 {
-    return dynamic_cast<LeafNode *>( node );
+    return dynamic_cast<LeafNode const *>( node );
 }
-int BVH::getObjectIdx( Node *node ) const
+int BVH::getObjectIdx( Node const *node ) const
 {
-    return dynamic_cast<LeafNode *>( node )->objectID;
+    return dynamic_cast<LeafNode const *>( node )->objectID;
 }
-Node *BVH::getLeftChild( Node *node )
-{
-    return dynamic_cast<InternalNode *>( node )->childA;
-}
-Node const *BVH::getLeftChild( Node *node ) const
+Node *BVH::getLeftChild( Node const *node )
 {
     return dynamic_cast<InternalNode const *>( node )->childA;
 }
-Node *BVH::getRightChild( Node *node )
+Node const *BVH::getLeftChild( Node const *node ) const
 {
-    return dynamic_cast<InternalNode *>( node )->childB;
+    return dynamic_cast<InternalNode const *>( node )->childA;
 }
-Node const *BVH::getRightChild( Node *node ) const
+Node *BVH::getRightChild( Node const *node )
+{
+    return dynamic_cast<InternalNode const *>( node )->childB;
+}
+Node const *BVH::getRightChild( Node const *node ) const
 {
     return dynamic_cast<InternalNode const *>( node )->childB;
 }
