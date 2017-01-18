@@ -173,28 +173,6 @@ Kokkos::pair<int, int> determineRange( unsigned int *sortedMortonCodes,
     return Kokkos::pair<int, int>( min( idx, jdx ), max( idx, jdx ) );
 }
 
-// alternate top-down implementation less efficient
-Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
-                         int first, int last )
-{
-    // Single object => create a leaf node.
-
-    if ( first == last )
-        return new LeafNode( &sortedObjectIDs[first] );
-
-    // Determine where to split the range.
-
-    int split = findSplit( sortedMortonCodes, first, last );
-
-    // Process the resulting sub-ranges recursively.
-
-    Node *childA =
-        generateHierarchy( sortedMortonCodes, sortedObjectIDs, first, split );
-    Node *childB = generateHierarchy( sortedMortonCodes, sortedObjectIDs,
-                                      split + 1, last );
-    return new InternalNode( childA, childB );
-}
-
 // to assign the Morton code for a given object, we use the centroid point of
 // its bounding box, and express it relative to the bounding box of the scene.
 void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
