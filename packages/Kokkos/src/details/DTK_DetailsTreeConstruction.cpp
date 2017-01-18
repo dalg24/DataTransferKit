@@ -36,7 +36,58 @@ unsigned int morton3D( float x, float y, float z )
     return xx * 4 + yy * 2 + zz;
 }
 
+// TODO: this is a mess
+// we need a default impl
 #define __clz( x ) __builtin_clz( x )
+// default implementation if nothing else is available
+// Taken from:
+// http://stackoverflow.com/questions/23856596/counting-leading-zeros-in-a-32-bit-unsigned-integer-with-best-algorithm-in-c-pro
+// WARNING: this implementation does **not** support __clz(0) (result should be
+// 32 but this function returns 0)
+int clz( uint32_t x )
+{
+    static const char debruijn32[32] = {
+        0, 31, 9, 30, 3, 8,  13, 29, 2,  5,  7,  21, 12, 24, 28, 19,
+        1, 10, 4, 14, 6, 22, 25, 20, 11, 15, 23, 26, 16, 27, 17, 18};
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x++;
+    return debruijn32[x * 0x076be629 >> 27];
+}
+
+// TODO: use preprocessor directive to select an implementation
+// it turns out NVDIA's implementation of int __clz(unsigned int x) is
+// slightly different than GCC __builtin_clz
+// this caused a bug in an early implementation of the function that compute
+// the common prefixes betwwen two keys (NB: when i == j)
+int countLeadingZeros( unsigned int x )
+{
+#if defined __GNUC__
+    // int __builtin_clz(unsigned int x) result is undefined if x is 0
+    return x != 0 ? __builtin_clz( x ) : 32;
+#else
+    // similar problem with the default implementation
+    return x != 0 ? clz( x ) : 32;
+#endif
+}
+
+int commonPrefix( unsigned int const *k, int n, int i, int j )
+{
+    if ( j < 0 || j > n - 1 )
+        return -1;
+    // our construction algorithm relies on keys being unique so we handle
+    // explicitly case of duplicate Morton codes by augmenting each key by a bit
+    // representation of its index.
+    if ( k[i] == k[j] )
+    {
+        // countLeadingZeros( k[i] ^ k[j] ) == 32
+        return 32 + countLeadingZeros( i ^ j );
+    }
+    return countLeadingZeros( k[i] ^ k[j] );
+}
 
 int findSplit( unsigned int *sortedMortonCodes, int first, int last )
 {
@@ -80,20 +131,6 @@ int findSplit( unsigned int *sortedMortonCodes, int first, int last )
 // branchless sign function
 // QUESTION: do we want to add it to DTK helpers?
 inline int sgn( int x ) { return ( x > 0 ) - ( x < 0 ); }
-
-// COMMENT: Do I want to expose this in the headers?
-// TODO: Answer is YES.  And we need tests for that
-// More particularly need to handle the case when i!=j but codes are the same
-int commonPrefix( unsigned int *mortonCodes, int numObjects, int i, int j )
-{
-    // int __builtin_clz(unsigned int x) result is undefined if x is 0
-    if ( i == j )
-        return std::numeric_limits<unsigned int>::digits;
-    for ( int k : {i, j} )
-        if ( k < 0 || k > numObjects - 1 )
-            return -1;
-    return __clz( mortonCodes[i] ^ mortonCodes[j] );
-}
 
 Kokkos::pair<int, int> determineRange( unsigned int *sortedMortonCodes,
                                        int numObjects, int idx )
@@ -158,19 +195,6 @@ Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
     return new InternalNode( childA, childB );
 }
 
-void sortObjects( unsigned int *mortonCodes, int *objectIDs, int n )
-{
-    using std::sort;
-    // possibly use thrust::sort()
-    // see https://thrust.github.io
-    sort( objectIDs, objectIDs + n,
-          [&mortonCodes]( int const &i, int const &j ) {
-              return mortonCodes[i] < mortonCodes[j];
-          } );
-    // TODO: in-place permutation of mortonCodes rather than 2nd sort
-    sort( mortonCodes, mortonCodes + n );
-}
-
 // to assign the Morton code for a given object, we use the centroid point of
 // its bounding box, and express it relative to the bounding box of the scene.
 void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
@@ -192,6 +216,19 @@ void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
     }
 }
 
+void sortObjects( unsigned int *morton_codes, int *object_ids, int n )
+{
+    using std::sort;
+    // possibly use thrust::sort()
+    // see https://thrust.github.io
+    sort( object_ids, object_ids + n,
+          [morton_codes]( int const &i, int const &j ) {
+              return morton_codes[i] < morton_codes[j];
+          } );
+    // TODO: in-place permutation of mortonCodes rather than 2nd sort
+    sort( morton_codes, morton_codes + n );
+}
+
 void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
                                      AABB &sceneBoundingBox )
 {
@@ -200,8 +237,6 @@ void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
         expand( sceneBoundingBox, boundingBoxes[i] );
 }
 
-// TODO: current implementation assumes all Morton codes are unique
-// Need to handle duplicates expilcitly
 Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
                          int numObjects, LeafNode *leafNodes,
                          InternalNode *internalNodes )
@@ -298,6 +333,9 @@ void calculateBoundingBoxes( LeafNode *leafNodes, InternalNode *internalNodes,
             expand( *getAABB( node ), *getAABB( node->childB ) );
             node = dynamic_cast<InternalNode *>( node->parent );
         } while ( node != nullptr );
+        // NOTE: could stop at node != root and then just check that what we
+        // computed earlier (bounding box of the scene) is indeed the union of
+        // the two children.
     }
 }
 
