@@ -182,12 +182,12 @@ void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
     double a, b;
     for ( int i = 0; i < n; ++i ) // parallel for
     {
+        centroid(boundingBoxes[i], xyz);
+        // scale coordinates with respect to bounding box of the scene
         for ( int d = 0; d < 3; ++d )
         {
-            xyz[d] = 0.5 * ( boundingBoxes[i]._minmax[2 * d + 0] +
-                             boundingBoxes[i]._minmax[2 * d + 1] );
-            a = sceneBoundingBox._minmax[2 * d + 0];
-            b = sceneBoundingBox._minmax[2 * d + 1];
+            a = sceneBoundingBox[2 * d + 0];
+            b = sceneBoundingBox[2 * d + 1];
             xyz[d] = ( xyz[d] - a ) / ( b - a );
         }
         mortonCodes[i] = morton3D( xyz[0], xyz[1], xyz[2] );
