@@ -15,9 +15,9 @@ using Box = AABB;
 double distance( Point const &a, Point const &b );
 // ditance point-box
 double distance( Point const &point, Box const &box );
-// expand an axis-aligned bounding dox using a point
+// expand an axis-aligned bounding box using a point
 void expand( Box &box, Point const &point );
-// expand an axis-aligned bounding dox using another one
+// expand an axis-aligned bounding box using another box
 void expand( Box &box, Box const &other );
 // check if two axis-aligned bounding boxes overlap
 bool overlaps( Box const &box, Box const &other );
