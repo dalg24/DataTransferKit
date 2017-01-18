@@ -44,6 +44,11 @@ struct AABB
         : _minmax( minmax )
     {
     }
+    AABB &operator=( std::array<double, 6> const &minmax )
+    {
+        _minmax = minmax;
+        return *this;
+    }
     double &operator[]( size_type i ) { return _minmax[i]; }
     double const &operator[]( size_type i ) const { return _minmax[i]; }
     std::array<double, 6> _minmax = {{
