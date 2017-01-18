@@ -60,14 +60,14 @@ bool overlaps( Box const &box, Box const &other )
     for ( int d = 0; d < 3; ++d )
         if ( box[2 * d + 0] > other[2 * d + 1] ||
              box[2 * d + 1] < other[2 * d + 0] )
-            return false;    return true;
+            return false;
+    return true;
 }
 
 void centroid( Box const &box, Point &c )
 {
     for ( int d = 0; d < 3; ++d )
-      c[d] = 0.5 * ( box[2 * d + 0] + box [2 * d + 1] );
-
+        c[d] = 0.5 * ( box[2 * d + 0] + box[2 * d + 1] );
 }
 
 } // end namespace Details
