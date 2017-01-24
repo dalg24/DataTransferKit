@@ -30,6 +30,8 @@ BVH::BVH( AABB const *boundingBoxes, int n )
     Details::sortObjects( morton_indices.data(), ids.data(), n );
     // generate bounding volume hierarchy
     _leaf_nodes.resize( n );
+    for ( auto &node : _leaf_nodes )
+        node.isLeaf = true;
     _internal_nodes.resize( n - 1 );
     Details::generateHierarchy( morton_indices.data(), ids.data(), n,
                                 _leaf_nodes.data(), _internal_nodes.data() );
@@ -44,39 +46,35 @@ AABB BVH::getAABB( Node const *node ) const
     int idx = -1;
     if ( isLeaf( node ) )
     {
-        idx = dynamic_cast<LeafNode const *>( node )->objectID;
+        idx = node->objectID;
     }
     else
     {
-        idx =
-            dynamic_cast<InternalNode const *>( node ) - _internal_nodes.data();
+        idx = node - _internal_nodes.data();
         idx += _leaf_nodes.size();
     }
     return _bounding_boxes[idx];
 }
-bool BVH::isLeaf( Node const *node ) const
+bool BVH::isLeaf( Node const *node ) const { return node->isLeaf; }
+int BVH::getObjectIdx( Node const *leaf_node ) const
 {
-    return dynamic_cast<LeafNode const *>( node );
+    return leaf_node->objectID;
 }
-int BVH::getObjectIdx( Node const *node ) const
+Node *BVH::getLeftChild( Node const *internal_node )
 {
-    return dynamic_cast<LeafNode const *>( node )->objectID;
+    return internal_node->childA;
 }
-Node *BVH::getLeftChild( Node const *node )
+Node const *BVH::getLeftChild( Node const *internal_node ) const
 {
-    return dynamic_cast<InternalNode const *>( node )->childA;
+    return internal_node->childA;
 }
-Node const *BVH::getLeftChild( Node const *node ) const
+Node *BVH::getRightChild( Node const *internal_node )
 {
-    return dynamic_cast<InternalNode const *>( node )->childA;
+    return internal_node->childB;
 }
-Node *BVH::getRightChild( Node const *node )
+Node const *BVH::getRightChild( Node const *internal_node ) const
 {
-    return dynamic_cast<InternalNode const *>( node )->childB;
-}
-Node const *BVH::getRightChild( Node const *node ) const
-{
-    return dynamic_cast<InternalNode const *>( node )->childB;
+    return internal_node->childB;
 }
 Node const *BVH::getRoot() const { return _internal_nodes.data(); }
 Node *BVH::getRoot() { return _internal_nodes.data(); }

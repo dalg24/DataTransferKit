@@ -169,23 +169,23 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
     std::cout << "ref=" << ref.str() << "\n";
 
     // hierarchy generation
-    std::vector<DataTransferKit::LeafNode> leaf_nodes( n );
-    std::vector<DataTransferKit::InternalNode> internal_nodes( n - 1 );
+    std::vector<DataTransferKit::Node> leaf_nodes( n );
+    for ( auto &node : leaf_nodes )
+        node.isLeaf = true;
+    std::vector<DataTransferKit::Node> internal_nodes( n - 1 );
     std::function<void( DataTransferKit::Node *, std::ostream & )>
         traverseRecursive;
     traverseRecursive = [&leaf_nodes, &internal_nodes, &traverseRecursive](
         DataTransferKit::Node *node, std::ostream &os ) {
-        if ( auto leaf = dynamic_cast<DataTransferKit::LeafNode *>( node ) )
+        if ( node->isLeaf )
         {
-            os << "L" << leaf - leaf_nodes.data();
+            os << "L" << node - leaf_nodes.data();
         }
         else
         {
-            auto internal =
-                dynamic_cast<DataTransferKit::InternalNode *>( node );
-            os << "I" << internal - internal_nodes.data();
-            traverseRecursive( internal->childA, os );
-            traverseRecursive( internal->childB, os );
+            os << "I" << node - internal_nodes.data();
+            traverseRecursive( node->childA, os );
+            traverseRecursive( node->childB, os );
         }
     };
 
@@ -193,8 +193,7 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
         sorted_morton_codes.data(), sorted_indices.data(), n, leaf_nodes.data(),
         internal_nodes.data() );
 
-    DataTransferKit::Node *root =
-        dynamic_cast<DataTransferKit::Node *>( internal_nodes.data() );
+    DataTransferKit::Node *root = internal_nodes.data();
     TEST_ASSERT( root->parent == nullptr );
 
     std::ostringstream sol;
