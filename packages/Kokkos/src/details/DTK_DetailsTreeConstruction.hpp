@@ -24,9 +24,8 @@ void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
                         int n, AABB const &sceneBoundingBox );
 void sortObjects( unsigned int *morton_codes, int *object_ids, int n );
 Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
-                         int n, LeafNode *leafNodes,
-                         InternalNode *internalNodes );
-void calculateBoundingBoxes( LeafNode *leafNodes, InternalNode *internalNodes,
+                         int n, Node *leafNodes, Node *internalNodes );
+void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
                              int numObjects, AABB *boundingBoxes );
 
 } // end namespace Details
