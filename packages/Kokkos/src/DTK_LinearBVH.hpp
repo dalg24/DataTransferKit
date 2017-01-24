@@ -18,20 +18,8 @@ struct Node
 {
     virtual ~Node() = default;
     Node *parent = nullptr;
-};
-struct LeafNode : public Node
-{
-    LeafNode(){};
-    LeafNode( int *id )
-        : objectID( *id ){};
+    bool isLeaf = false;
     int objectID = -1;
-};
-struct InternalNode : public Node
-{
-    InternalNode(){};
-    InternalNode( Node *a, Node *b )
-        : childA( a )
-        , childB( b ){};
     Node *childA = nullptr;
     Node *childB = nullptr;
 };
@@ -75,15 +63,15 @@ struct BVH
     BVH( AABB const *boundingBoxes, int n );
     AABB getAABB( Node const *node ) const;
     bool isLeaf( Node const *node ) const;
-    int getObjectIdx( Node const *node ) const;
-    Node *getLeftChild( Node const *node );
-    Node const *getLeftChild( Node const *node ) const;
-    Node *getRightChild( Node const *node );
-    Node const *getRightChild( Node const *node ) const;
+    int getObjectIdx( Node const *leaf_node ) const;
+    Node *getLeftChild( Node const *internal_node );
+    Node const *getLeftChild( Node const *internal_node ) const;
+    Node *getRightChild( Node const *internal_node );
+    Node const *getRightChild( Node const *internal_node ) const;
     Node *getRoot();
     Node const *getRoot() const;
-    std::vector<LeafNode> _leaf_nodes;
-    std::vector<InternalNode> _internal_nodes;
+    std::vector<Node> _leaf_nodes;
+    std::vector<Node> _internal_nodes;
     std::vector<AABB> _bounding_boxes;
     AABB _scene_bounding_box; // don't actually really need to store it
 };

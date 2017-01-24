@@ -216,8 +216,7 @@ void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
 }
 
 Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
-                         int numObjects, LeafNode *leafNodes,
-                         InternalNode *internalNodes )
+                         int numObjects, Node *leafNodes, Node *internalNodes )
 {
     // Construct leaf nodes.
     // Note: This step can be avoided by storing
@@ -271,7 +270,7 @@ Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
     return &internalNodes[0];
 }
 
-void calculateBoundingBoxes( LeafNode *leafNodes, InternalNode *internalNodes,
+void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
                              int numObjects, AABB *boundingBoxes )
 {
     // possibly use Kokkos::atomic_fetch_add() here
@@ -285,31 +284,29 @@ void calculateBoundingBoxes( LeafNode *leafNodes, InternalNode *internalNodes,
     auto getAABB = [boundingBoxes, numObjects, leafNodes,
                     internalNodes]( Node *node ) {
         int idx = -1;
-        if ( auto leaf = dynamic_cast<LeafNode *>( node ) )
+        if ( node->isLeaf )
         {
-            idx = leaf->objectID;
+            idx = node->objectID;
         }
         else
         {
-            auto internal = dynamic_cast<InternalNode *>( node );
-            idx = internal - internalNodes;
+            idx = node - internalNodes;
             idx += numObjects;
         }
         return boundingBoxes + idx;
     };
 
-    InternalNode *root = internalNodes;
+    Node *root = internalNodes;
     for ( int i = 0; i < numObjects; ++i ) // parallel for
     {
-        InternalNode *node =
-            dynamic_cast<InternalNode *>( leafNodes[i].parent );
+        Node *node = leafNodes[i].parent;
         do
         {
             if ( !atomic_flags[node - root].test_and_set() )
                 break;
             expand( *getAABB( node ), *getAABB( node->childA ) );
             expand( *getAABB( node ), *getAABB( node->childB ) );
-            node = dynamic_cast<InternalNode *>( node->parent );
+            node = node->parent;
         } while ( node != nullptr );
         // NOTE: could stop at node != root and then just check that what we
         // computed earlier (bounding box of the scene) is indeed the union of
