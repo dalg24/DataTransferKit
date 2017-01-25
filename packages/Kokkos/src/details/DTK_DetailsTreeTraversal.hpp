@@ -33,14 +33,14 @@ bool checkOverlap( AABB const &a, AABB const &b );
 
 // query k nearest neighbours
 std::list<std::pair<int, double>>
-nearest( BVH &bvh, std::array<double, 3> const &query_point, int k = 1 );
+nearest( BVH const &bvh, std::array<double, 3> const &query_point, int k = 1 );
 
 // radius search
 std::list<std::pair<int, double>>
 within( BVH &bvh, std::array<double, 3> const &query_point, double radius );
 
 // priority queue helper for nearest neighbor search
-using Value = std::pair<Node *, double>;
+using Value = std::pair<Node const *, double>;
 struct CompareDistance
 {
     bool operator()( Value const &lhs, Value const &rhs )
