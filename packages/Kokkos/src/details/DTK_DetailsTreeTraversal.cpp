@@ -101,7 +101,7 @@ within( BVH &bvh, std::array<double, 3> const &query_point, double radius )
 }
 
 std::list<std::pair<int, double>>
-nearest( BVH &bvh, std::array<double, 3> const &query_point, int k )
+nearest( BVH const &bvh, std::array<double, 3> const &query_point, int k )
 {
     SortedList candidate_list( k );
 
@@ -110,7 +110,7 @@ nearest( BVH &bvh, std::array<double, 3> const &query_point, int k )
     // directly and removed from the priority queue
     // we don't even bother computing the distance to it
     queue.emplace( bvh.getRoot(), -1.0 );
-    Node *node;
+    Node const *node;
     double priority;
 
     double cutoff = std::numeric_limits<double>::max();
@@ -132,12 +132,13 @@ nearest( BVH &bvh, std::array<double, 3> const &query_point, int k )
         }
         else
         {
-            Node *childL = bvh.getLeftChild( node );
-            Node *childR = bvh.getRightChild( node );
-            double distanceL = distance( query_point, bvh.getAABB( childL ) );
-            double distanceR = distance( query_point, bvh.getAABB( childR ) );
-            queue.emplace( childL, distanceL );
-            queue.emplace( childR, distanceR );
+            for ( Node const *child :
+                  {bvh.getLeftChild( node ), bvh.getRightChild( node )} )
+            {
+                double child_distance =
+                    distance( query_point, bvh.getAABB( child ) );
+                queue.emplace( child, child_distance );
+            }
         }
     }
     return candidate_list._sorted_list;
