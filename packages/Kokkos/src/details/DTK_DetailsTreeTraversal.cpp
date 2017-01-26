@@ -109,29 +109,32 @@ nearest( BVH const &bvh, std::array<double, 3> const &query_point, int k )
     // priority does not matter for the root since the node will be processed
     // directly and removed from the priority queue
     // we don't even bother computing the distance to it
-    queue.emplace( bvh.getRoot(), -1.0 );
-    Node const *node;
-    double priority;
+    Node const *node = bvh.getRoot();
+    double node_distance = 0.0;
+    queue.emplace( node, node_distance );
 
     double cutoff = std::numeric_limits<double>::max();
-    while ( !queue.empty() && priority < cutoff )
+    while ( !queue.empty() && node_distance < cutoff )
     {
-        std::tie( node, priority ) = queue.top();
+        // get the node that is on top of the priority list (i.e. is the closest
+        // to the query point)
+        std::tie( node, node_distance ) = queue.top();
         queue.pop();
         if ( bvh.isLeaf( node ) )
         {
-            // QUESTION: should priority already have the correct value for the
-            // distance in which case we don't need to recompute it here
-            double dist = distance( query_point, bvh.getAABB( node ) );
-            if ( dist < cutoff )
+            if ( node_distance < cutoff )
             {
-                candidate_list.emplace( bvh.getObjectIdx( node ), dist );
+                // add leaf node to the candidate list
+                candidate_list.emplace( bvh.getObjectIdx( node ),
+                                        node_distance );
+                // update cutoff if k neighbors are in the list
                 if ( candidate_list.full() )
-                    cutoff = dist;
+                    std::tie( std::ignore, cutoff ) = candidate_list.back();
             }
         }
         else
         {
+            // insert children of the node in the priority list
             for ( Node const *child :
                   {bvh.getLeftChild( node ), bvh.getRightChild( node )} )
             {
