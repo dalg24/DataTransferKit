@@ -80,6 +80,14 @@ TEUCHOS_UNIT_TEST( DetailsAlgorithms, expand )
                 return false;
         return true;
     };
+    // check that the utility does its job properly
+    TEST_ASSERT(
+        checkBoxesEquality( dtk::Box( {0.0, 1.0, 0.0, 1.0, 0.0, 1.0} ),
+                            dtk::Box( {0.0, 1.0, 0.0, 1.0, 0.0, 1.0} ) ) );
+    TEST_ASSERT(
+        !checkBoxesEquality( dtk::Box( {0.0, 1.0, 0.0, 1.0, 0.0, 1.0} ),
+                             dtk::Box( {-1.0, 1.0, -1.0, 1.0, -1.0, 1.0} ) ) );
+
     dtk::Box box;
 
     // expand box with points
