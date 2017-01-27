@@ -68,7 +68,7 @@ int countLeadingZeros( unsigned int x )
 #if defined __CUDACC__
     // intrinsic function that is only supported in device code
     // COMMENT: not sure how I am supposed to use it then...
-    return __clz(x);
+    return __clz( x );
 
 #elif defined __GNUC__
     // int __builtin_clz(unsigned int x) result is undefined if x is 0
