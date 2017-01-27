@@ -220,16 +220,9 @@ void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
         expand( sceneBoundingBox, boundingBoxes[i] );
 }
 
-Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
-                         int numObjects, Node *leafNodes, Node *internalNodes )
+Node *generateHierarchy( unsigned int *sortedMortonCodes, int numObjects,
+                         Node *leafNodes, Node *internalNodes )
 {
-    // Construct leaf nodes.
-    // Note: This step can be avoided by storing
-    // the tree in a slightly different way.
-
-    for ( int idx = 0; idx < numObjects; idx++ ) // in parallel
-        leafNodes[idx].objectID = sortedObjectIDs[idx];
-
     // Construct internal nodes.
 
     for ( int idx = 0; idx < numObjects - 1; idx++ ) // in parallel
@@ -276,7 +269,7 @@ Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
 }
 
 void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
-                             int numObjects, AABB *boundingBoxes )
+                             int numObjects, BVH *bvh )
 {
     // possibly use Kokkos::atomic_fetch_add() here
     std::vector<std::atomic_flag> atomic_flags( numObjects - 1 );
@@ -286,21 +279,6 @@ void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
     for ( auto &flag : atomic_flags )
         flag.clear();
 
-    auto getAABB = [boundingBoxes, numObjects, leafNodes,
-                    internalNodes]( Node *node ) {
-        int idx = -1;
-        if ( node->isLeaf )
-        {
-            idx = node->objectID;
-        }
-        else
-        {
-            idx = node - internalNodes;
-            idx += numObjects;
-        }
-        return boundingBoxes + idx;
-    };
-
     Node *root = internalNodes;
     for ( int i = 0; i < numObjects; ++i ) // parallel for
     {
@@ -309,8 +287,8 @@ void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
         {
             if ( !atomic_flags[node - root].test_and_set() )
                 break;
-            expand( *getAABB( node ), *getAABB( node->childA ) );
-            expand( *getAABB( node ), *getAABB( node->childB ) );
+            expand( bvh->getAABB( node ), bvh->getAABB( node->childA ) );
+            expand( bvh->getAABB( node ), bvh->getAABB( node->childB ) );
             node = node->parent;
         } while ( node != nullptr );
         // NOTE: could stop at node != root and then just check that what we

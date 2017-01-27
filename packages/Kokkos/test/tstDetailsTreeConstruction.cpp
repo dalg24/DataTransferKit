@@ -145,8 +145,6 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
         sorted_morton_codes.push_back( b.to_ulong() );
     }
     int const n = sorted_morton_codes.size();
-    std::vector<int> sorted_indices( n );
-    std::iota( sorted_indices.begin(), sorted_indices.end(), 0 );
 
     // reference solution for a recursive traversal from top to bottom
     // starting from root, visiting first the left child and then the right one
@@ -170,14 +168,15 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
 
     // hierarchy generation
     std::vector<DataTransferKit::Node> leaf_nodes( n );
-    for ( auto &node : leaf_nodes )
-        node.isLeaf = true;
     std::vector<DataTransferKit::Node> internal_nodes( n - 1 );
     std::function<void( DataTransferKit::Node *, std::ostream & )>
         traverseRecursive;
     traverseRecursive = [&leaf_nodes, &internal_nodes, &traverseRecursive](
         DataTransferKit::Node *node, std::ostream &os ) {
-        if ( node->isLeaf )
+        if ( std::any_of( leaf_nodes.begin(), leaf_nodes.end(),
+                          [node]( DataTransferKit::Node const &leaf_node ) {
+                              return std::addressof( leaf_node ) == node;
+                          } ) )
         {
             os << "L" << node - leaf_nodes.data();
         }
@@ -189,9 +188,9 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
         }
     };
 
-    DataTransferKit::Details::generateHierarchy(
-        sorted_morton_codes.data(), sorted_indices.data(), n, leaf_nodes.data(),
-        internal_nodes.data() );
+    DataTransferKit::Details::generateHierarchy( sorted_morton_codes.data(), n,
+                                                 leaf_nodes.data(),
+                                                 internal_nodes.data() );
 
     DataTransferKit::Node *root = internal_nodes.data();
     TEST_ASSERT( root->parent == nullptr );

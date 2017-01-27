@@ -23,10 +23,10 @@ void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
 void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
                         int n, AABB const &sceneBoundingBox );
 void sortObjects( unsigned int *morton_codes, int *object_ids, int n );
-Node *generateHierarchy( unsigned int *sortedMortonCodes, int *sortedObjectIDs,
-                         int n, Node *leafNodes, Node *internalNodes );
+Node *generateHierarchy( unsigned int *sortedMortonCodes, int n,
+                         Node *leafNodes, Node *internalNodes );
 void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
-                             int numObjects, AABB *boundingBoxes );
+                             int numObjects, BVH *bvh );
 
 } // end namespace Details
 } // end namespace DataTransferKit
