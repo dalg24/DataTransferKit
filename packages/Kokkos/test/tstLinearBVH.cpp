@@ -115,8 +115,7 @@ TEUCHOS_UNIT_TEST( LinearBVH, structured_grid )
             for ( int k = 0; k < nz; ++k )
             {
                 // bounding box around nodes of the structured grid will overlap
-                // with
-                // neighboring nodes
+                // with neighboring nodes
                 bounding_boxes[ind( i, j, k )]._minmax = {
                     ( i - 1 ) * Lx / ( nx - 1 ), ( i + 1 ) * Lx / ( nx - 1 ),
                     ( j - 1 ) * Ly / ( ny - 1 ), ( j + 1 ) * Ly / ( ny - 1 ),
