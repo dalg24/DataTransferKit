@@ -25,28 +25,26 @@ BVH::BVH( AABB const *boundingBoxes, int n )
     Details::assignMortonCodes( _bounding_boxes.data(), morton_indices.data(),
                                 n, _scene_bounding_box );
     // sort them along the Z-order space-filling curve
-    std::vector<int> ids( n, -1 );
-    iota( ids.begin(), ids.end(), 0 );
-    Details::sortObjects( morton_indices.data(), ids.data(), n );
+    _sorted_indices.resize( n, -1 );
+    iota( _sorted_indices.begin(), _sorted_indices.end(), 0 );
+    Details::sortObjects( morton_indices.data(), _sorted_indices.data(), n );
     // generate bounding volume hierarchy
     _leaf_nodes.resize( n );
-    for ( auto &node : _leaf_nodes )
-        node.isLeaf = true;
     _internal_nodes.resize( n - 1 );
-    Details::generateHierarchy( morton_indices.data(), ids.data(), n,
-                                _leaf_nodes.data(), _internal_nodes.data() );
+    Details::generateHierarchy( morton_indices.data(), n, _leaf_nodes.data(),
+                                _internal_nodes.data() );
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
     _bounding_boxes.resize( 2 * n - 1 );
     Details::calculateBoundingBoxes( _leaf_nodes.data(), _internal_nodes.data(),
-                                     n, _bounding_boxes.data() );
+                                     n, this );
 }
-AABB BVH::getAABB( Node const *node ) const
+AABB &BVH::getAABB( Node const *node )
 {
     int idx = -1;
     if ( isLeaf( node ) )
     {
-        idx = node->objectID;
+        idx = getObjectIdx( node );
     }
     else
     {
@@ -55,10 +53,29 @@ AABB BVH::getAABB( Node const *node ) const
     }
     return _bounding_boxes[idx];
 }
-bool BVH::isLeaf( Node const *node ) const { return node->isLeaf; }
+AABB const &BVH::getAABB( Node const *node ) const
+{
+    int idx = -1;
+    if ( isLeaf( node ) )
+    {
+        idx = getObjectIdx( node );
+    }
+    else
+    {
+        idx = node - _internal_nodes.data();
+        idx += _leaf_nodes.size();
+    }
+    return _bounding_boxes[idx];
+}
+// COMMENT: could also check that pointer is in the range [leaf_nodes,
+// leaf_nodes+n]
+bool BVH::isLeaf( Node const *node ) const
+{
+    return ( node->childA == nullptr ) && ( node->childB == nullptr );
+}
 int BVH::getObjectIdx( Node const *leaf_node ) const
 {
-    return leaf_node->objectID;
+    return _sorted_indices[leaf_node - _leaf_nodes.data()];
 }
 Node *BVH::getLeftChild( Node const *internal_node )
 {
