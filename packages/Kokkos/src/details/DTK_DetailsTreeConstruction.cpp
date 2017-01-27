@@ -23,7 +23,7 @@ unsigned int expandBits( unsigned int v )
 
 // Calculates a 30-bit Morton code for the
 // given 3D point located within the unit cube [0,1].
-unsigned int morton3D( float x, float y, float z )
+unsigned int morton3D( double x, double y, double z )
 {
     using std::min;
     using std::max;
