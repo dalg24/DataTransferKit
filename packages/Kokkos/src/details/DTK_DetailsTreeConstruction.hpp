@@ -10,7 +10,7 @@ namespace Details
 {
 // utilities for tree construction
 unsigned int expandBits( unsigned int v );
-unsigned int morton3D( float x, float y, float z );
+unsigned int morton3D( double x, double y, double z );
 int countLeadingZeros( unsigned int k );
 int commonPrefix( unsigned int const *k, int n, int i, int j );
 int findSplit( unsigned int *sortedMortonCodes, int first, int last );
