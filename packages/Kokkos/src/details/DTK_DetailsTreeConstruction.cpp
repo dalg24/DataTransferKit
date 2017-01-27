@@ -65,7 +65,12 @@ int clz( uint32_t x )
 // the common prefixes between two keys (NB: when i == j)
 int countLeadingZeros( unsigned int x )
 {
-#if defined __GNUC__
+#if defined __CUDACC__
+    // intrinsic function that is only supported in device code
+    // COMMENT: not sure how I am supposed to use it then...
+    return __clz(x);
+
+#elif defined __GNUC__
     // int __builtin_clz(unsigned int x) result is undefined if x is 0
     return x != 0 ? __builtin_clz( x ) : 32;
 #else
