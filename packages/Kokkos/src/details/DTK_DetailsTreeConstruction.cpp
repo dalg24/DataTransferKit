@@ -27,9 +27,9 @@ unsigned int morton3D( double x, double y, double z )
 {
     using std::min;
     using std::max;
-    x = min( max( x * 1024.0f, 0.0f ), 1023.0f );
-    y = min( max( y * 1024.0f, 0.0f ), 1023.0f );
-    z = min( max( z * 1024.0f, 0.0f ), 1023.0f );
+    x = min( max( x * 1024.0, 0.0 ), 1023.0 );
+    y = min( max( y * 1024.0, 0.0 ), 1023.0 );
+    z = min( max( z * 1024.0, 0.0 ), 1023.0 );
     unsigned int xx = expandBits( (unsigned int)x );
     unsigned int yy = expandBits( (unsigned int)y );
     unsigned int zz = expandBits( (unsigned int)z );
