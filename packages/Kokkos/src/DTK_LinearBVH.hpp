@@ -18,8 +18,6 @@ struct Node
 {
     virtual ~Node() = default;
     Node *parent = nullptr;
-    bool isLeaf = false;
-    int objectID = -1;
     Node *childA = nullptr;
     Node *childB = nullptr;
 };
@@ -61,7 +59,8 @@ struct AABB
 struct BVH
 {
     BVH( AABB const *boundingBoxes, int n );
-    AABB getAABB( Node const *node ) const;
+    AABB &getAABB( Node const *node );
+    AABB const &getAABB( Node const *node ) const;
     bool isLeaf( Node const *node ) const;
     int getObjectIdx( Node const *leaf_node ) const;
     Node *getLeftChild( Node const *internal_node );
@@ -73,6 +72,7 @@ struct BVH
     std::vector<Node> _leaf_nodes;
     std::vector<Node> _internal_nodes;
     std::vector<AABB> _bounding_boxes;
+    std::vector<int> _sorted_indices;
     AABB _scene_bounding_box; // don't actually really need to store it
 };
 
