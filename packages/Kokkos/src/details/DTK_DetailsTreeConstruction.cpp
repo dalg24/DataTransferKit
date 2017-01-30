@@ -257,8 +257,8 @@ Node *generateHierarchy( unsigned int *sortedMortonCodes, int numObjects,
 
         // Record parent-child relationships.
 
-        internalNodes[idx].childA = childA;
-        internalNodes[idx].childB = childB;
+        internalNodes[idx].children.first = childA;
+        internalNodes[idx].children.second = childB;
         childA->parent = &internalNodes[idx];
         childB->parent = &internalNodes[idx];
     }
@@ -287,8 +287,8 @@ void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
         {
             if ( !atomic_flags[node - root].test_and_set() )
                 break;
-            expand( bvh->getAABB( node ), bvh->getAABB( node->childA ) );
-            expand( bvh->getAABB( node ), bvh->getAABB( node->childB ) );
+            for ( Node *child : {node->children.first, node->children.second} )
+                expand( node->bounding_box, child->bounding_box );
             node = node->parent;
         } while ( node != nullptr );
         // NOTE: could stop at node != root and then just check that what we

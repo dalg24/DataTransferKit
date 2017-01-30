@@ -13,7 +13,7 @@ void traverseRecursive( CollisionList &list, BVH const &bvh,
                         Node const *node )
 {
     // Bounding box overlaps the query => process node.
-    if ( checkOverlap( bvh.getAABB( node ), queryAABB ) )
+    if ( checkOverlap( node->bounding_box, queryAABB ) )
     {
         // Leaf node => report collision.
         if ( bvh.isLeaf( node ) )
@@ -22,8 +22,8 @@ void traverseRecursive( CollisionList &list, BVH const &bvh,
         // Internal node => recurse to children.
         else
         {
-            Node const *childL = bvh.getLeftChild( node );
-            Node const *childR = bvh.getRightChild( node );
+            Node const *childL = node->children.first;
+            Node const *childR = node->children.second;
             traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childL );
             traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childR );
         }
@@ -44,10 +44,10 @@ void traverseIterative( CollisionList &list, BVH const &bvh,
     do
     {
         // Check each child node for overlap.
-        Node const *childL = bvh.getLeftChild( node );
-        Node const *childR = bvh.getRightChild( node );
-        bool overlapL = ( checkOverlap( queryAABB, bvh.getAABB( childL ) ) );
-        bool overlapR = ( checkOverlap( queryAABB, bvh.getAABB( childR ) ) );
+        Node const *childL = node->children.first;
+        Node const *childR = node->children.second;
+        bool overlapL = ( checkOverlap( queryAABB, childL->bounding_box ) );
+        bool overlapR = ( checkOverlap( queryAABB, childR->bounding_box ) );
 
         // Query overlaps a leaf node => report collision.
         if ( overlapL && bvh.isLeaf( childL ) )
@@ -136,10 +136,10 @@ nearest( BVH const &bvh, std::array<double, 3> const &query_point, int k )
         {
             // insert children of the node in the priority list
             for ( Node const *child :
-                  {bvh.getLeftChild( node ), bvh.getRightChild( node )} )
+                  {node->children.first, node->children.second} )
             {
                 double child_distance =
-                    distance( query_point, bvh.getAABB( child ) );
+                    distance( query_point, child->bounding_box );
                 queue.emplace( child, child_distance );
             }
         }
