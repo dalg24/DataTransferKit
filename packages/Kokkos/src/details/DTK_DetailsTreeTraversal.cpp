@@ -1,6 +1,8 @@
 #include <details/DTK_DetailsAlgorithms.hpp>
 #include <details/DTK_DetailsTreeTraversal.hpp>
 
+#include <Kokkos_ArithTraits.hpp>
+
 namespace DataTransferKit
 {
 namespace Details
@@ -113,7 +115,7 @@ nearest( BVH const &bvh, std::array<double, 3> const &query_point, int k )
     double node_distance = 0.0;
     queue.emplace( node, node_distance );
 
-    double cutoff = std::numeric_limits<double>::max();
+    double cutoff = Kokkos::ArithTraits<double>::max();
     while ( !queue.empty() && node_distance < cutoff )
     {
         // get the node that is on top of the priority list (i.e. is the closest
