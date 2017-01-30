@@ -30,12 +30,9 @@ struct AABB
     double &operator[]( size_type i ) { return _minmax[i]; }
     double const &operator[]( size_type i ) const { return _minmax[i]; }
     std::array<double, 6> _minmax = {{
-        Kokkos::Details::ArithTraits<double>::max(),
-        -Kokkos::Details::ArithTraits<double>::max(),
-        Kokkos::Details::ArithTraits<double>::max(),
-        -Kokkos::Details::ArithTraits<double>::max(),
-        Kokkos::Details::ArithTraits<double>::max(),
-        -Kokkos::Details::ArithTraits<double>::max(),
+        Kokkos::ArithTraits<double>::max(), -Kokkos::ArithTraits<double>::max(),
+        Kokkos::ArithTraits<double>::max(), -Kokkos::ArithTraits<double>::max(),
+        Kokkos::ArithTraits<double>::max(), -Kokkos::ArithTraits<double>::max(),
     }};
     friend std::ostream &operator<<( std::ostream &os, AABB const &aabb )
     {

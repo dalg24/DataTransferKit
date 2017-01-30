@@ -1,6 +1,7 @@
 #include <details/DTK_DetailsAlgorithms.hpp>
 #include <details/DTK_DetailsTreeConstruction.hpp>
 
+#include <Kokkos_ArithTraits.hpp>
 #include <Teuchos_UnitTestHarness.hpp>
 
 #include <algorithm>
@@ -34,7 +35,7 @@ TEUCHOS_UNIT_TEST( DetailsBVH, morton_codes )
                dtk::expandBits( k );
     };
     std::vector<unsigned int> ref( n,
-                                   std::numeric_limits<unsigned int>::max() );
+                                   Kokkos::ArithTraits<unsigned int>::max() );
     for ( int i = 0; i < n; ++i )
         ref[i] = fun( anchors[i] );
     // using points rather than boxes for convenience here but still have to
@@ -52,7 +53,7 @@ TEUCHOS_UNIT_TEST( DetailsBVH, morton_codes )
     }
 
     std::vector<unsigned int> morton_codes(
-        n, std::numeric_limits<unsigned int>::max() );
+        n, Kokkos::ArithTraits<unsigned int>::max() );
     dtk::assignMortonCodes( boxes.data(), morton_codes.data(), n, scene );
     for ( int i = 0; i < n; ++i )
         TEST_EQUALITY( morton_codes[i], ref[i] );
