@@ -268,8 +268,8 @@ Node *generateHierarchy( unsigned int *sortedMortonCodes, int numObjects,
     return &internalNodes[0];
 }
 
-void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
-                             int numObjects, BVH *bvh )
+void calculateBoundingBoxes( Node const *leafNodes, Node *internalNodes,
+                             int numObjects )
 {
     // possibly use Kokkos::atomic_fetch_add() here
     std::vector<std::atomic_flag> atomic_flags( numObjects - 1 );
