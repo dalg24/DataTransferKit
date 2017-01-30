@@ -183,8 +183,9 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
         else
         {
             os << "I" << node - internal_nodes.data();
-            traverseRecursive( node->childA, os );
-            traverseRecursive( node->childB, os );
+            for ( DataTransferKit::Node *child :
+                  {node->children.first, node->children.second} )
+                traverseRecursive( child, os );
         }
     };
 

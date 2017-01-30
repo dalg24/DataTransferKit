@@ -13,14 +13,6 @@
 
 namespace DataTransferKit
 {
-// NOTE: emulate polymorphism with boolean to say whether leaf or internal node
-struct Node
-{
-    virtual ~Node() = default;
-    Node *parent = nullptr;
-    Node *childA = nullptr;
-    Node *childB = nullptr;
-};
 // Axis-Aligned Bounding Box
 struct AABB
 {
@@ -55,23 +47,23 @@ struct AABB
         return os;
     }
 };
+struct Node
+{
+    virtual ~Node() = default;
+    Node *parent = nullptr;
+    Kokkos::pair<Node *, Node *> children = {nullptr, nullptr};
+    AABB bounding_box;
+};
 // Bounding Volume Hierarchy
 struct BVH
 {
-    BVH( AABB const *boundingBoxes, int n );
-    AABB &getAABB( Node const *node );
-    AABB const &getAABB( Node const *node ) const;
+    BVH( AABB const *bounding_boxes, int n );
     bool isLeaf( Node const *node ) const;
     int getObjectIdx( Node const *leaf_node ) const;
-    Node *getLeftChild( Node const *internal_node );
-    Node const *getLeftChild( Node const *internal_node ) const;
-    Node *getRightChild( Node const *internal_node );
-    Node const *getRightChild( Node const *internal_node ) const;
     Node *getRoot();
     Node const *getRoot() const;
     std::vector<Node> _leaf_nodes;
     std::vector<Node> _internal_nodes;
-    std::vector<AABB> _bounding_boxes;
     std::vector<int> _sorted_indices;
     AABB _scene_bounding_box; // don't actually really need to store it
 };

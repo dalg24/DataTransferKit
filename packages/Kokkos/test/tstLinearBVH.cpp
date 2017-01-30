@@ -11,60 +11,6 @@
 #include <iostream>
 #include <random>
 
-TEUCHOS_UNIT_TEST( LinearBVH, random_spheres )
-{
-    // create a sequence of spheres with centroid within the cube [-10,10]^3 and
-    // radius in [1,3]
-    int const n = 10;
-    std::default_random_engine generator;
-    std::uniform_real_distribution<double> distribution_centroid( -10.0, 10.0 );
-    std::uniform_real_distribution<double> distribution_radius( 1, 3 );
-    std::vector<DataTransferKit::AABB> boundingBoxes( n );
-    for ( int i = 0; i < n; ++i )
-    {
-        double centroid[3] = {
-            distribution_centroid( generator ),
-            distribution_centroid( generator ),
-            distribution_centroid( generator ),
-        };
-        double radius = distribution_radius( generator );
-        for ( int d = 0; d < 3; ++d )
-        {
-            boundingBoxes[i]._minmax[2 * d + 0] = centroid[d] - radius;
-            boundingBoxes[i]._minmax[2 * d + 1] = centroid[d] + radius;
-        }
-    }
-
-    DataTransferKit::BVH bvh( boundingBoxes.data(), n );
-
-    //    std::cout << "sorted ids and morton codes\n";
-    //    for ( int i = 0; i < n; ++i )
-    //        std::cout << bvh._ids[i] << "  " << bvh._morton_indices[i] << "  "
-    //                  << std::bitset<32>( bvh._morton_indices[i] ) << "\n";
-    std::cout << "root bounding box = ";
-    for ( auto const &x : bvh._bounding_boxes[n]._minmax )
-        std::cout << x << "  ";
-    std::cout << "\n";
-    std::cout << "scene bounding box = ";
-    for ( auto const &x : bvh._scene_bounding_box._minmax )
-        std::cout << x << "  ";
-    std::cout << "\n";
-
-    for ( int d = 0; d < 3; ++d )
-    {
-        TEST_EQUALITY( bvh._bounding_boxes[n]._minmax[2 * d + 0],
-                       bvh._scene_bounding_box._minmax[2 * d + 0] );
-        TEST_EQUALITY( bvh._bounding_boxes[n]._minmax[2 * d + 1],
-                       bvh._scene_bounding_box._minmax[2 * d + 1] );
-    }
-
-    DataTransferKit::Details::CollisionList collision_list;
-    DataTransferKit::Details::traverseIterative( collision_list, bvh,
-                                                 bvh._bounding_boxes[0], 0 );
-    DataTransferKit::Details::traverseRecursive(
-        collision_list, bvh, bvh._bounding_boxes[0], 0, bvh.getRoot() );
-}
-
 TEUCHOS_UNIT_TEST( LinearBVH, structured_grid )
 {
     double Lx = 100.0;
