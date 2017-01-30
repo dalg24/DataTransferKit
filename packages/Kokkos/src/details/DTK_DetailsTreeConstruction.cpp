@@ -94,20 +94,21 @@ int commonPrefix( unsigned int const *k, int n, int i, int j )
     return countLeadingZeros( k[i] ^ k[j] );
 }
 
-int findSplit( unsigned int *sortedMortonCodes, int first, int last )
+// from "Thinking Parallel, Part III: Tree Construction on the GPU" by Karras
+int findSplit( unsigned int *sorted_morton_codes, int first, int last )
 {
     // Identical Morton codes => split the range in the middle.
 
-    unsigned int firstCode = sortedMortonCodes[first];
-    unsigned int lastCode = sortedMortonCodes[last];
+    unsigned int first_code = sorted_morton_codes[first];
+    unsigned int last_code = sorted_morton_codes[last];
 
-    if ( firstCode == lastCode )
+    if ( first_code == last_code )
         return ( first + last ) >> 1;
 
     // Calculate the number of highest bits that are the same
     // for all objects, using the count-leading-zeros intrinsic.
 
-    int commonPrefix = __clz( firstCode ^ lastCode );
+    int common_prefix = __clz( first_code ^ last_code );
 
     // Use binary search to find where the next bit differs.
     // Specifically, we are looking for the highest object that
@@ -118,15 +119,15 @@ int findSplit( unsigned int *sortedMortonCodes, int first, int last )
 
     do
     {
-        step = ( step + 1 ) >> 1;    // exponential decrease
-        int newSplit = split + step; // proposed new position
+        step = ( step + 1 ) >> 1;     // exponential decrease
+        int new_split = split + step; // proposed new position
 
-        if ( newSplit < last )
+        if ( new_split < last )
         {
-            unsigned int splitCode = sortedMortonCodes[newSplit];
-            int splitPrefix = __clz( firstCode ^ splitCode );
-            if ( splitPrefix > commonPrefix )
-                split = newSplit; // accept proposal
+            unsigned int split_code = sorted_morton_codes[new_split];
+            int split_prefix = __clz( first_code ^ split_code );
+            if ( split_prefix > common_prefix )
+                split = new_split; // accept proposal
         }
     } while ( step > 1 );
 
@@ -137,45 +138,37 @@ int findSplit( unsigned int *sortedMortonCodes, int first, int last )
 // QUESTION: do we want to add it to DTK helpers?
 inline int sgn( int x ) { return ( x > 0 ) - ( x < 0 ); }
 
-Kokkos::pair<int, int> determineRange( unsigned int *sortedMortonCodes,
-                                       int numObjects, int idx )
+Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
+                                       int i )
 {
     using std::min;
     using std::max;
     // determine direction of the range (+1 or -1)
-    int direction =
-        sgn( commonPrefix( sortedMortonCodes, numObjects, idx, idx + 1 ) -
-             commonPrefix( sortedMortonCodes, numObjects, idx, idx - 1 ) );
+    int direction = sgn( commonPrefix( sorted_morton_codes, n, i, i + 1 ) -
+                         commonPrefix( sorted_morton_codes, n, i, i - 1 ) );
     assert( direction == +1 || direction == -1 );
     // compute upper bound for the length of the range
-    int upperBoundLenght = 2;
-    int commonPrefixLowerBound =
-        commonPrefix( sortedMortonCodes, numObjects, idx, idx - direction );
+    int max_step = 2;
+    int common_prefix =
+        commonPrefix( sorted_morton_codes, n, i, i - direction );
     // compute upper bound for the length of the range
-    while ( commonPrefix( sortedMortonCodes, numObjects, idx,
-                          idx + direction * upperBoundLenght ) >
-            commonPrefixLowerBound )
+    while ( commonPrefix( sorted_morton_codes, n, i,
+                          i + direction * max_step ) > common_prefix )
     {
-        upperBoundLenght = upperBoundLenght << 1;
+        max_step = max_step << 1;
     }
     // find the other end using binary search
     int split = 0;
-    int step = upperBoundLenght;
+    int step = max_step;
     do
     {
         step = step >> 1;
-        int newSplit = idx + ( split + step ) * direction;
-        //    unsigned int splitCode = sortedMortonCodes[newSplit];
-        if ( commonPrefix( sortedMortonCodes, numObjects, idx, newSplit ) >
-             commonPrefixLowerBound )
+        if ( commonPrefix( sorted_morton_codes, n, i,
+                           i + ( split + step ) * direction ) > common_prefix )
             split += step;
     } while ( step > 1 );
-    //  std::cout<<idx<<"  dir="<<direction<<"
-    //  delta_min="<<commonPrefixLowerBound<<"  lmax="<<upperBoundLenght<<"
-    //  length="<<split<<"\n";
-    int jdx = idx + split * direction;
-    // an equivalent to std::make_pair or std::minmax would be nice here
-    return Kokkos::pair<int, int>( min( idx, jdx ), max( idx, jdx ) );
+    int j = i + split * direction;
+    return {min( i, j ), max( i, j )};
 }
 
 // to assign the Morton code for a given object, we use the centroid point of
