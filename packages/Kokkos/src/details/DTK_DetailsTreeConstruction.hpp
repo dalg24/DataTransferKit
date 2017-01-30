@@ -13,9 +13,9 @@ unsigned int expandBits( unsigned int v );
 unsigned int morton3D( double x, double y, double z );
 int countLeadingZeros( unsigned int k );
 int commonPrefix( unsigned int const *k, int n, int i, int j );
-int findSplit( unsigned int *sortedMortonCodes, int first, int last );
-Kokkos::pair<int, int> determineRange( unsigned int *sortedMortonCodes,
-                                       int numObjects, int idx );
+int findSplit( unsigned int *sorted_morton_codes, int first, int last );
+Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
+                                       int i );
 // COMMENT: most of these could/should be protected function in BVH to avoid
 // passing all this data around
 void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
