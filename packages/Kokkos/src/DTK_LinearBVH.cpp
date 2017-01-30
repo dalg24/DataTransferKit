@@ -34,7 +34,7 @@ BVH::BVH( AABB const *bounding_boxes, int n )
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
     Details::calculateBoundingBoxes( _leaf_nodes.data(), _internal_nodes.data(),
-                                     n, this );
+                                     n );
 }
 // COMMENT: could also check that pointer is in the range [leaf_nodes,
 // leaf_nodes+n]
