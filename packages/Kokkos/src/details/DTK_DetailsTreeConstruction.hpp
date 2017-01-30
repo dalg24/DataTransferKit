@@ -25,8 +25,8 @@ void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
 void sortObjects( unsigned int *morton_codes, int *object_ids, int n );
 Node *generateHierarchy( unsigned int *sortedMortonCodes, int n,
                          Node *leafNodes, Node *internalNodes );
-void calculateBoundingBoxes( Node *leafNodes, Node *internalNodes,
-                             int numObjects, BVH *bvh );
+void calculateBoundingBoxes( Node const *leafNodes, Node *internalNodes,
+                             int numObjects );
 
 } // end namespace Details
 } // end namespace DataTransferKit
