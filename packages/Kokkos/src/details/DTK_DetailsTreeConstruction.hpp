@@ -18,15 +18,15 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
                                        int i );
 // COMMENT: most of these could/should be protected function in BVH to avoid
 // passing all this data around
-void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
-                                     AABB &sceneBoundingBox );
-void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
-                        int n, AABB const &sceneBoundingBox );
+void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes, int n,
+                                     AABB &scene_bounding_box );
+void assignMortonCodes( AABB const *bounding_boxes, unsigned int *morton_codes,
+                        int n, AABB const &scene_bounding_box );
 void sortObjects( unsigned int *morton_codes, int *object_ids, int n );
-Node *generateHierarchy( unsigned int *sortedMortonCodes, int n,
-                         Node *leafNodes, Node *internalNodes );
-void calculateBoundingBoxes( Node const *leafNodes, Node *internalNodes,
-                             int numObjects );
+Node *generateHierarchy( unsigned int *sorted_morton_codes, int n,
+                         Node *leaf_nodes, Node *internal_nodes );
+void calculateBoundingBoxes( Node const *leaf_nodes, Node *internal_nodes,
+                             int n );
 
 } // end namespace Details
 } // end namespace DataTransferKit

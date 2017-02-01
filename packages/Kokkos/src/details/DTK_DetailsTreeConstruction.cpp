@@ -171,24 +171,32 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
     return {min( i, j ), max( i, j )};
 }
 
+void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes, int n,
+                                     AABB &scene_bounding_box )
+{
+    // QUESTION: precondition on sceneBoundingBox?
+    for ( int i = 0; i < n; ++i ) // parallel reduce
+        expand( scene_bounding_box, bounding_boxes[i] );
+}
+
 // to assign the Morton code for a given object, we use the centroid point of
 // its bounding box, and express it relative to the bounding box of the scene.
-void assignMortonCodes( AABB const *boundingBoxes, unsigned int *mortonCodes,
-                        int n, AABB const &sceneBoundingBox )
+void assignMortonCodes( AABB const *bounding_boxes, unsigned int *morton_codes,
+                        int n, AABB const &scene_bounding_box )
 {
     std::array<double, 3> xyz;
     double a, b;
     for ( int i = 0; i < n; ++i ) // parallel for
     {
-        centroid( boundingBoxes[i], xyz );
+        centroid( bounding_boxes[i], xyz );
         // scale coordinates with respect to bounding box of the scene
         for ( int d = 0; d < 3; ++d )
         {
-            a = sceneBoundingBox[2 * d + 0];
-            b = sceneBoundingBox[2 * d + 1];
+            a = scene_bounding_box[2 * d + 0];
+            b = scene_bounding_box[2 * d + 1];
             xyz[d] = ( xyz[d] - a ) / ( b - a );
         }
-        mortonCodes[i] = morton3D( xyz[0], xyz[1], xyz[2] );
+        morton_codes[i] = morton3D( xyz[0], xyz[1], xyz[2] );
     }
 }
 
@@ -205,77 +213,69 @@ void sortObjects( unsigned int *morton_codes, int *object_ids, int n )
     sort( morton_codes, morton_codes + n );
 }
 
-void calculateBoundingBoxOfTheScene( AABB const *boundingBoxes, int n,
-                                     AABB &sceneBoundingBox )
-{
-    // QUESTION: precondition on sceneBoundingBox?
-    for ( int i = 0; i < n; ++i ) // parallel reduce
-        expand( sceneBoundingBox, boundingBoxes[i] );
-}
-
-Node *generateHierarchy( unsigned int *sortedMortonCodes, int numObjects,
-                         Node *leafNodes, Node *internalNodes )
+// from "Thinking Parallel, Part III: Tree Construction on the GPU" by Karras
+Node *generateHierarchy( unsigned int *sorted_morton_codes, int n,
+                         Node *leaf_nodes, Node *internal_nodes )
 {
     // Construct internal nodes.
 
-    for ( int idx = 0; idx < numObjects - 1; idx++ ) // in parallel
+    for ( int i = 0; i < n - 1; ++i ) // in parallel
     {
         // Find out which range of objects the node corresponds to.
         // (This is where the magic happens!)
 
-        auto range = determineRange( sortedMortonCodes, numObjects, idx );
+        auto range = determineRange( sorted_morton_codes, n, i );
         int first = range.first;
         int last = range.second;
-        //        std::cout<<idx<<"  range=("<<first<<", "<<last<<")\n";
 
         // Determine where to split the range.
 
-        int split = findSplit( sortedMortonCodes, first, last );
+        int split = findSplit( sorted_morton_codes, first, last );
 
         // Select childA.
 
         Node *childA;
         if ( split == first )
-            childA = &leafNodes[split];
+            childA = &leaf_nodes[split];
         else
-            childA = &internalNodes[split];
+            childA = &internal_nodes[split];
 
         // Select childB.
 
         Node *childB;
         if ( split + 1 == last )
-            childB = &leafNodes[split + 1];
+            childB = &leaf_nodes[split + 1];
         else
-            childB = &internalNodes[split + 1];
+            childB = &internal_nodes[split + 1];
 
         // Record parent-child relationships.
 
-        internalNodes[idx].children.first = childA;
-        internalNodes[idx].children.second = childB;
-        childA->parent = &internalNodes[idx];
-        childB->parent = &internalNodes[idx];
+        internal_nodes[i].children.first = childA;
+        internal_nodes[i].children.second = childB;
+        childA->parent = &internal_nodes[i];
+        childB->parent = &internal_nodes[i];
     }
 
     // Node 0 is the root.
 
-    return &internalNodes[0];
+    return &internal_nodes[0];
 }
 
-void calculateBoundingBoxes( Node const *leafNodes, Node *internalNodes,
-                             int numObjects )
+void calculateBoundingBoxes( Node const *leaf_nodes, Node *internal_nodes,
+                             int n )
 {
     // possibly use Kokkos::atomic_fetch_add() here
-    std::vector<std::atomic_flag> atomic_flags( numObjects - 1 );
+    std::vector<std::atomic_flag> atomic_flags( n - 1 );
     // flags are in an unspecified state on construction
     // their value cannot be copied/moved (constructor and assigment deleted)
     // so we have to loop over them and initialize them to the clear state
     for ( auto &flag : atomic_flags )
         flag.clear();
 
-    Node *root = internalNodes;
-    for ( int i = 0; i < numObjects; ++i ) // parallel for
+    Node *root = internal_nodes;
+    for ( int i = 0; i < n; ++i ) // parallel for
     {
-        Node *node = leafNodes[i].parent;
+        Node *node = leaf_nodes[i].parent;
         do
         {
             if ( !atomic_flags[node - root].test_and_set() )
