@@ -20,7 +20,7 @@ double distance( Point const &a, Point const &b )
 
 double distance( Point const &point, Box const &box )
 {
-    std::array<double, 3> projected_point;
+    Point projected_point;
     for ( int d = 0; d < 3; ++d )
     {
         if ( point[d] < box[2 * d + 0] )
