@@ -184,7 +184,7 @@ void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes, int n,
 void assignMortonCodes( AABB const *bounding_boxes, unsigned int *morton_codes,
                         int n, AABB const &scene_bounding_box )
 {
-    std::array<double, 3> xyz;
+    Point xyz;
     double a, b;
     for ( int i = 0; i < n; ++i ) // parallel for
     {
