@@ -2,13 +2,12 @@
 #define DTK_DETAILS_ALGORITHMS_HPP
 
 #include <DTK_LinearBVH.hpp> // AABB
-#include <array>
 
 namespace DataTransferKit
 {
 namespace Details
 {
-using Point = std::array<double, 3>;
+using Point = Kokkos::Array<double, 3>;
 using Box = AABB;
 
 // distance point-point

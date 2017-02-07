@@ -2,34 +2,32 @@
 #define DTK_LINEAR_BVH_HPP
 
 #include <Kokkos_ArithTraits.hpp>
+#include <Kokkos_Array.hpp>
 #include <Kokkos_Pair.hpp>
+#include <Kokkos_View.hpp>
 
-#include <array>
-#include <list>
-#include <vector>
-
-// From Tero Karras
-// (https://devblogs.nvidia.com/parallelforall/thinking-parallel-part-iii-tree-construction-gpu/)
+#include <vector> // TODO: replace with Kokkos::View
 
 namespace DataTransferKit
 {
 // Axis-Aligned Bounding Box
 struct AABB
 {
-    using size_type = std::array<double, 6>::size_type;
+    using Array = Kokkos::Array<double, 6>;
+    using SizeType = Array::size_type;
     AABB() = default;
-    AABB( std::array<double, 6> minmax )
+    AABB( Array const &minmax )
         : _minmax( minmax )
     {
     }
-    AABB &operator=( std::array<double, 6> const &minmax )
+    AABB &operator=( Array const &minmax )
     {
         _minmax = minmax;
         return *this;
     }
-    double &operator[]( size_type i ) { return _minmax[i]; }
-    double const &operator[]( size_type i ) const { return _minmax[i]; }
-    std::array<double, 6> _minmax = {{
+    double &operator[]( SizeType i ) { return _minmax[i]; }
+    double const &operator[]( SizeType i ) const { return _minmax[i]; }
+    Array _minmax = {{
         Kokkos::ArithTraits<double>::max(), -Kokkos::ArithTraits<double>::max(),
         Kokkos::ArithTraits<double>::max(), -Kokkos::ArithTraits<double>::max(),
         Kokkos::ArithTraits<double>::max(), -Kokkos::ArithTraits<double>::max(),
@@ -38,8 +36,7 @@ struct AABB
     {
         os << "{";
         for ( int d = 0; d < 3; ++d )
-            os << " [" << aabb._minmax[2 * d + 0] << ", "
-               << aabb._minmax[2 * d + 1] << "],";
+            os << " [" << aabb[2 * d + 0] << ", " << aabb[2 * d + 1] << "],";
         os << "}";
         return os;
     }
@@ -63,6 +60,8 @@ struct BVH
     std::vector<Node> _internal_nodes;
     std::vector<int> _sorted_indices;
     AABB _scene_bounding_box; // don't actually really need to store it
+    template <typename Predicate>
+    int query( Predicate const &predicates, std::vector<int> &out ) const;
 };
 
 } // end namespace DataTransferKit

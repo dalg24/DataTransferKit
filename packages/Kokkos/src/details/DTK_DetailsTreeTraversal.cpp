@@ -74,26 +74,34 @@ void traverseIterative( CollisionList &list, BVH const &bvh,
 }
 
 std::list<std::pair<int, double>>
-within( BVH &bvh, std::array<double, 3> const &query_point, double radius )
+within( BVH const &bvh, Point const &query_point, double radius )
 {
-    throw std::runtime_error( "Not fully implemented." );
     std::list<std::pair<int, double>> ret;
-    double x = query_point[0];
-    double y = query_point[1];
-    double z = query_point[2];
-    AABB aabb;
-    aabb._minmax = {
-        x - radius, x + radius, y - radius, y + radius, z - radius, z + radius,
-    };
-    CollisionList collision_list;
-    traverseIterative( collision_list, bvh, aabb, -1 );
 
-    for ( auto const &collision : collision_list._ij )
+    Stack stack;
+
+    Node const *node = bvh.getRoot();
+    double node_distance = 0.0;
+    stack.emplace( node, node_distance );
+    while ( !stack.empty() )
     {
-        int p = collision.second;
-        double d; // TODO
-        if ( d <= radius )
-            ret.emplace_back( p, d );
+        std::tie( node, node_distance ) = stack.top();
+        stack.pop();
+        if ( bvh.isLeaf( node ) )
+        {
+            ret.emplace_back( bvh.getObjectIdx( node ), node_distance );
+        }
+        else
+        {
+            for ( Node const *child :
+                  {node->children.first, node->children.second} )
+            {
+                double child_distance =
+                    distance( query_point, child->bounding_box );
+                if ( child_distance <= radius )
+                    stack.emplace( child, child_distance );
+            }
+        }
     }
     ret.sort(
         []( std::pair<int, double> const &a, std::pair<int, double> const &b ) {
@@ -102,8 +110,8 @@ within( BVH &bvh, std::array<double, 3> const &query_point, double radius )
     return ret;
 }
 
-std::list<std::pair<int, double>>
-nearest( BVH const &bvh, std::array<double, 3> const &query_point, int k )
+std::list<std::pair<int, double>> nearest( BVH const &bvh,
+                                           Point const &query_point, int k )
 {
     SortedList candidate_list( k );
 

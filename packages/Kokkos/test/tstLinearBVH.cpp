@@ -11,6 +11,21 @@
 #include <iostream>
 #include <random>
 
+TEUCHOS_UNIT_TEST( LinearBVH, tag_dispatching )
+{
+
+    std::vector<DataTransferKit::AABB> boxes = {{{0, 0, 0, 0, 0, 0}},
+                                                {{1, 1, 1, 1, 1, 1}}};
+    DataTransferKit::BVH bvh( boxes.data(), boxes.size() );
+    std::vector<int> results;
+    bvh.query( DataTransferKit::Details::nearest(
+                   DataTransferKit::Details::Point{0, 0, 0}, 1 ),
+               results );
+    bvh.query( DataTransferKit::Details::within(
+                   DataTransferKit::Details::Point{0, 0, 0}, 0.5 ),
+               results );
+}
+
 TEUCHOS_UNIT_TEST( LinearBVH, structured_grid )
 {
     double Lx = 100.0;
@@ -296,27 +311,7 @@ TEUCHOS_UNIT_TEST( LinearBVH, rtree )
         // This will need to be cleaned up, possibly with a templated tree
         // traversal with a predicate.
         std::list<std::pair<int, double>> sol;
-        DataTransferKit::AABB aabb;
-        aabb._minmax = {
-            x - radius, x + radius, y - radius,
-            y + radius, z - radius, z + radius,
-        };
-        DataTransferKit::Details::CollisionList collision_list;
-        DataTransferKit::Details::traverseIterative( collision_list, bvh, aabb,
-                                                     -1 );
-        // filter out candidates, don't bother sorting the results
-        for ( auto const &collision : collision_list._ij )
-        {
-            int p = collision.second;
-            // here using directly cloud to make our life easier
-            double x = std::get<0>( cloud[p] );
-            double y = std::get<1>( cloud[p] );
-            double z = std::get<2>( cloud[p] );
-            Point candidate( x, y, z );
-            double d = bg::distance( centroid, candidate );
-            if ( d <= radius )
-                sol.emplace_back( std::make_pair( p, d ) );
-        }
+        sol = DataTransferKit::Details::within( bvh, {x, y, z}, radius );
 
         // use the R-tree to obtain a reference solution
         std::vector<std::pair<Point, int>> returned_values;
