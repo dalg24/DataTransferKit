@@ -50,4 +50,17 @@ int BVH::getObjectIdx( Node const *leaf_node ) const
 Node const *BVH::getRoot() const { return _internal_nodes.data(); }
 Node *BVH::getRoot() { return _internal_nodes.data(); }
 
+template <typename Predicate>
+int BVH::query( Predicate const &predicates, std::vector<int> &out ) const
+{
+    using Tag = typename Predicate::Tag;
+    return Details::query_dispatch( this, predicates, out, Tag{} );
+}
+
+template int BVH::query( Details::Nearest<Details::Point> const &,
+                         std::vector<int> & ) const;
+
+template int BVH::query( Details::Within<Details::Point> const &,
+                         std::vector<int> & ) const;
+
 } // end namespace DataTransferKit
