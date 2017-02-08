@@ -25,7 +25,7 @@ double distance( Point const &point, Box const &box )
     {
         if ( point[d] < box[2 * d + 0] )
             projected_point[d] = box[2 * d + 0];
-        else if ( box[2 * d + 1] < point[d] )
+        else if ( point[d] > box[2 * d + 1] )
             projected_point[d] = box[2 * d + 1];
         else
             projected_point[d] = point[d];
@@ -37,7 +37,7 @@ void expand( Box &box, Point const &point )
 {
     for ( int d = 0; d < 3; ++d )
     {
-        if ( box[2 * d + 0] > point[d] )
+        if ( point[d] < box[2 * d + 0] )
             box[2 * d + 0] = point[d];
         if ( point[d] > box[2 * d + 1] )
             box[2 * d + 1] = point[d];
