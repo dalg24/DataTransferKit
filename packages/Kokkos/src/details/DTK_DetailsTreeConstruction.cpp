@@ -276,14 +276,14 @@ void calculateBoundingBoxes( Node const *leaf_nodes, Node *internal_nodes,
     for ( int i = 0; i < n; ++i ) // parallel for
     {
         Node *node = leaf_nodes[i].parent;
-        do
+        while ( node != root )
         {
             if ( !atomic_flags[node - root].test_and_set() )
                 break;
             for ( Node *child : {node->children.first, node->children.second} )
                 expand( node->bounding_box, child->bounding_box );
             node = node->parent;
-        } while ( node != nullptr );
+        }
         // NOTE: could stop at node != root and then just check that what we
         // computed earlier (bounding box of the scene) is indeed the union of
         // the two children.

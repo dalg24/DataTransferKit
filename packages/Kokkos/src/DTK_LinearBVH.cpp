@@ -12,22 +12,23 @@ namespace DataTransferKit
 BVH::BVH( AABB const *bounding_boxes, int n )
 {
     // determine the bounding box of the scene
+    _internal_nodes.resize( 1 );
     Details::calculateBoundingBoxOfTheScene( bounding_boxes, n,
-                                             _scene_bounding_box );
+                                             _internal_nodes[0].bounding_box );
     // calculate morton code of all objects
     std::vector<unsigned int> morton_indices(
         n, Kokkos::ArithTraits<unsigned int>::max() );
     Details::assignMortonCodes( bounding_boxes, morton_indices.data(), n,
-                                _scene_bounding_box );
+                                _internal_nodes[0].bounding_box );
     // sort them along the Z-order space-filling curve
-    _sorted_indices.resize( n, -1 );
+    _indices.resize( n, -1 );
     for ( int i = 0; i < n; ++i ) // parallel_for
-        _sorted_indices[i] = i;
-    Details::sortObjects( morton_indices.data(), _sorted_indices.data(), n );
+        _indices[i] = i;
+    Details::sortObjects( morton_indices.data(), _indices.data(), n );
     // generate bounding volume hierarchy
     _leaf_nodes.resize( n );
     for ( int i = 0; i < n; ++i ) // parallel_for
-        _leaf_nodes[i].bounding_box = bounding_boxes[_sorted_indices[i]];
+        _leaf_nodes[i].bounding_box = bounding_boxes[_indices[i]];
     _internal_nodes.resize( n - 1 );
     Details::generateHierarchy( morton_indices.data(), n, _leaf_nodes.data(),
                                 _internal_nodes.data() );
@@ -43,12 +44,13 @@ bool BVH::isLeaf( Node const *node ) const
     return ( node->children.first == nullptr ) &&
            ( node->children.second == nullptr );
 }
-int BVH::getObjectIdx( Node const *leaf_node ) const
+int BVH::getIndex( Node const *leaf ) const
 {
-    return _sorted_indices[leaf_node - _leaf_nodes.data()];
+    return _indices[leaf - _leaf_nodes.data()];
 }
 Node const *BVH::getRoot() const { return _internal_nodes.data(); }
-Node *BVH::getRoot() { return _internal_nodes.data(); }
+int BVH::size() const { return _leaf_nodes.size(); }
+AABB BVH::bounds() const { return getRoot()->bounding_box; }
 
 template <typename Predicate>
 int BVH::query( Predicate const &predicates, std::vector<int> &out ) const
