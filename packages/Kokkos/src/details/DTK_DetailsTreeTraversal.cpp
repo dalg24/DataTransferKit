@@ -19,7 +19,7 @@ void traverseRecursive( CollisionList &list, BVH const &bvh,
     {
         // Leaf node => report collision.
         if ( bvh.isLeaf( node ) )
-            list.add( queryObjectIdx, bvh.getObjectIdx( node ) );
+            list.add( queryObjectIdx, bvh.getIndex( node ) );
 
         // Internal node => recurse to children.
         else
@@ -53,10 +53,10 @@ void traverseIterative( CollisionList &list, BVH const &bvh,
 
         // Query overlaps a leaf node => report collision.
         if ( overlapL && bvh.isLeaf( childL ) )
-            list.add( queryObjectIdx, bvh.getObjectIdx( childL ) );
+            list.add( queryObjectIdx, bvh.getIndex( childL ) );
 
         if ( overlapR && bvh.isLeaf( childR ) )
-            list.add( queryObjectIdx, bvh.getObjectIdx( childR ) );
+            list.add( queryObjectIdx, bvh.getIndex( childR ) );
 
         // Query overlaps an internal node => traverse.
         bool traverseL = ( overlapL && !bvh.isLeaf( childL ) );
@@ -89,7 +89,7 @@ within( BVH const &bvh, Point const &query_point, double radius )
         stack.pop();
         if ( bvh.isLeaf( node ) )
         {
-            ret.emplace_back( bvh.getObjectIdx( node ), node_distance );
+            ret.emplace_back( bvh.getIndex( node ), node_distance );
         }
         else
         {
@@ -135,8 +135,7 @@ std::list<std::pair<int, double>> nearest( BVH const &bvh,
             if ( node_distance < cutoff )
             {
                 // add leaf node to the candidate list
-                candidate_list.emplace( bvh.getObjectIdx( node ),
-                                        node_distance );
+                candidate_list.emplace( bvh.getIndex( node ), node_distance );
                 // update cutoff if k neighbors are in the list
                 if ( candidate_list.full() )
                     std::tie( std::ignore, cutoff ) = candidate_list.back();
