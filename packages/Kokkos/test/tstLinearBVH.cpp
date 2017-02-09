@@ -13,7 +13,6 @@
 
 TEUCHOS_UNIT_TEST( LinearBVH, tag_dispatching )
 {
-
     std::vector<DataTransferKit::AABB> boxes = {{{0, 0, 0, 0, 0, 0}},
                                                 {{1, 1, 1, 1, 1, 1}}};
     DataTransferKit::BVH bvh( boxes.data(), boxes.size() );
