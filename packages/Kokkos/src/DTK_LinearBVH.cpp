@@ -10,26 +10,26 @@ namespace DataTransferKit
 {
 
 BVH::BVH( AABB const *bounding_boxes, int n )
+    : _leaf_nodes( "leaf_nodes", n )
+    , _internal_nodes( "internal_nodes", n - 1 )
+    , _indices( "sorted_indices", n )
 {
     // determine the bounding box of the scene
-    _internal_nodes.resize( 1 );
     Details::calculateBoundingBoxOfTheScene( bounding_boxes, n,
                                              _internal_nodes[0].bounding_box );
     // calculate morton code of all objects
-    std::vector<unsigned int> morton_indices(
-        n, Kokkos::ArithTraits<unsigned int>::max() );
+    Kokkos::View<unsigned int *, DeviceType> morton_indices( "morton", n );
+    for ( int i = 0; i < n; ++i ) // parallel_for
+        morton_indices[i] = Kokkos::ArithTraits<unsigned int>::max();
     Details::assignMortonCodes( bounding_boxes, morton_indices.data(), n,
                                 _internal_nodes[0].bounding_box );
     // sort them along the Z-order space-filling curve
-    _indices.resize( n, -1 );
     for ( int i = 0; i < n; ++i ) // parallel_for
         _indices[i] = i;
     Details::sortObjects( morton_indices.data(), _indices.data(), n );
     // generate bounding volume hierarchy
-    _leaf_nodes.resize( n );
     for ( int i = 0; i < n; ++i ) // parallel_for
         _leaf_nodes[i].bounding_box = bounding_boxes[_indices[i]];
-    _internal_nodes.resize( n - 1 );
     Details::generateHierarchy( morton_indices.data(), n, _leaf_nodes.data(),
                                 _internal_nodes.data() );
     // calculate bounding box for each internal node by walking the hierarchy
@@ -53,16 +53,17 @@ int BVH::size() const { return _leaf_nodes.size(); }
 AABB BVH::bounds() const { return getRoot()->bounding_box; }
 
 template <typename Predicate>
-int BVH::query( Predicate const &predicates, std::vector<int> &out ) const
+int BVH::query( Predicate const &predicates,
+                Kokkos::View<int *, BVH::DeviceType> out ) const
 {
     using Tag = typename Predicate::Tag;
     return Details::query_dispatch( this, predicates, out, Tag{} );
 }
 
 template int BVH::query( Details::Nearest<Details::Point> const &,
-                         std::vector<int> & ) const;
+                         Kokkos::View<int *, BVH::DeviceType> ) const;
 
 template int BVH::query( Details::Within<Details::Point> const &,
-                         std::vector<int> & ) const;
+                         Kokkos::View<int *, BVH::DeviceType> ) const;
 
 } // end namespace DataTransferKit

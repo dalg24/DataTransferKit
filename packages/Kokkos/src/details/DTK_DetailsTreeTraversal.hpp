@@ -134,13 +134,16 @@ Within<Geometry> within( Geometry const &g, double r )
     return Within<Geometry>( g, r );
 }
 
+// TODO: good job damien
+using DeviceType = BVH::DeviceType; // fixme
+
 template <typename Predicate>
 int query_dispatch( BVH const *bvh, Predicate const &pred,
-                    std::vector<int> &out, NearestPredicateTag )
+                    Kokkos::View<int *, DeviceType> out, NearestPredicateTag )
 {
     auto nearest_neighbors = nearest( *bvh, pred._geometry, pred._k );
     int const n = nearest_neighbors.size();
-    out.resize( n );
+    out = Kokkos::View<int *, DeviceType>( "dummy", n );
     int i = 0;
     for ( auto const &elem : nearest_neighbors )
     {
@@ -153,11 +156,11 @@ int query_dispatch( BVH const *bvh, Predicate const &pred,
 
 template <typename Predicate>
 int query_dispatch( BVH const *bvh, Predicate const &pred,
-                    std::vector<int> &out, SpatialPredicateTag )
+                    Kokkos::View<int *, DeviceType> out, SpatialPredicateTag )
 {
     auto aaa = within( *bvh, pred._geometry, pred._radius );
     int const n = aaa.size();
-    out.resize( n );
+    out = Kokkos::View<int *, DeviceType>( "dummy", n );
     int i = 0;
     for ( auto const &elem : aaa )
     {

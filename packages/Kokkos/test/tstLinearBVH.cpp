@@ -16,7 +16,8 @@ TEUCHOS_UNIT_TEST( LinearBVH, tag_dispatching )
     std::vector<DataTransferKit::AABB> boxes = {{{0, 0, 0, 0, 0, 0}},
                                                 {{1, 1, 1, 1, 1, 1}}};
     DataTransferKit::BVH bvh( boxes.data(), boxes.size() );
-    std::vector<int> results;
+    using DeviceType = DataTransferKit::BVH::DeviceType; // fixme
+    Kokkos::View<int *, DeviceType> results;
     bvh.query( DataTransferKit::Details::nearest(
                    DataTransferKit::Details::Point{0, 0, 0}, 1 ),
                results );
