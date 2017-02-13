@@ -6,7 +6,7 @@
 #include <Kokkos_Pair.hpp>
 #include <Kokkos_View.hpp>
 
-#include <vector> // TODO: replace with Kokkos::View
+#include <Kokkos_OpenMP.hpp> // TMP
 
 namespace DataTransferKit
 {
@@ -54,22 +54,25 @@ struct Node
 // Bounding Volume Hierarchy
 struct BVH
 {
+    using NodeType = Kokkos::OpenMP;
+    using DeviceType = NodeType::device_type;
     BVH( AABB const *bounding_boxes, int n );
     int size() const;
     AABB bounds() const;
     template <typename Predicate>
-    int query( Predicate const &predicates, std::vector<int> &out ) const;
+    int query( Predicate const &predicates,
+               Kokkos::View<int *, DeviceType> out ) const;
     bool isLeaf( Node const *node ) const;
     int getIndex( Node const *leaf ) const;
     Node const *getRoot() const;
 
   private:
-    std::vector<Node> _leaf_nodes;
-    std::vector<Node> _internal_nodes;
+    Kokkos::View<Node *, DeviceType> _leaf_nodes;
+    Kokkos::View<Node *, DeviceType> _internal_nodes;
     // Array of indices that sort the boxes used to construct the hierarchy.
     // The leaf nodes are ordered so we need these to identify objects that meet
     // a predicate.
-    std::vector<int> _indices;
+    Kokkos::View<int *, DeviceType> _indices;
 };
 
 } // end namespace DataTransferKit
