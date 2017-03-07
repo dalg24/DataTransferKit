@@ -5,7 +5,6 @@
 #include <details/DTK_Predicate.hpp>
 
 #include <DTK_LinearBVH.hpp> // BVH
-#include <DTK_LinearBVH_decl.hpp> // BVH
 
 #include <functional>
 #include <list>
