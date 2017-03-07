@@ -99,6 +99,7 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     Kokkos::parallel_for( "set_morton_indices",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_max_functor );
+    Kokkos::fence();
     Details::assignMortonCodes( bounding_boxes, morton_indices.data(), n,
                                 _internal_nodes[0].bounding_box );
 
@@ -107,6 +108,7 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     Kokkos::parallel_for( "set_indices",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_indices_functor );
+    Kokkos::fence();
     Details::sortObjects( morton_indices.data(), _indices.data(), n );
 
     // generate bounding volume hierarchy
@@ -115,6 +117,7 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     Kokkos::parallel_for( "set_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_bounding_boxes_functor );
+    Kokkos::fence();
     Details::generateHierarchy( morton_indices.data(), n, _leaf_nodes.data(),
                                 _internal_nodes.data() );
     // calculate bounding box for each internal node by walking the hierarchy
