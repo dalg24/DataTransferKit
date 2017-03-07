@@ -1,16 +1,12 @@
-#ifndef DTK_LINEAR_BVH_HPP
-#define DTK_LINEAR_BVH_HPP
+#ifndef DTK_AABB_HPP
+#define DTK_AABB_HPP
 
 #include <Kokkos_ArithTraits.hpp>
 #include <Kokkos_Array.hpp>
-#include <Kokkos_Pair.hpp>
-#include <Kokkos_View.hpp>
-
-#include <Kokkos_OpenMP.hpp> // TMP
+#include <Kokkos_Core.hpp>
 
 namespace DataTransferKit
 {
-
 // Axis-Aligned Bounding Box
 // This is just a thin wrapper around an array of size 2x spatial dimension with
 // a default constructor to initialize properly an "empty" box.
@@ -44,37 +40,6 @@ struct AABB
         return os;
     }
 };
-struct Node
-{
-    virtual ~Node() = default;
-    Node *parent = nullptr;
-    Kokkos::pair<Node *, Node *> children = {nullptr, nullptr};
-    AABB bounding_box;
-};
-// Bounding Volume Hierarchy
-struct BVH
-{
-    using NodeType = Kokkos::OpenMP;
-    using DeviceType = NodeType::device_type;
-    BVH( AABB const *bounding_boxes, int n );
-    int size() const;
-    AABB bounds() const;
-    template <typename Predicate>
-    int query( Predicate const &predicates,
-               Kokkos::View<int *, DeviceType> out ) const;
-    bool isLeaf( Node const *node ) const;
-    int getIndex( Node const *leaf ) const;
-    Node const *getRoot() const;
-
-  private:
-    Kokkos::View<Node *, DeviceType> _leaf_nodes;
-    Kokkos::View<Node *, DeviceType> _internal_nodes;
-    // Array of indices that sort the boxes used to construct the hierarchy.
-    // The leaf nodes are ordered so we need these to identify objects that meet
-    // a predicate.
-    Kokkos::View<int *, DeviceType> _indices;
-};
-
-} // end namespace DataTransferKit
+}
 
 #endif

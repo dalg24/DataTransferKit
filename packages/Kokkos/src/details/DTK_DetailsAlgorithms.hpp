@@ -1,7 +1,7 @@
 #ifndef DTK_DETAILS_ALGORITHMS_HPP
 #define DTK_DETAILS_ALGORITHMS_HPP
 
-#include <DTK_LinearBVH.hpp> // AABB
+#include <DTK_AABB.hpp>
 
 namespace DataTransferKit
 {
