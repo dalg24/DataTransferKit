@@ -2,8 +2,10 @@
 #define DTK_DETAILS_TREE_TRAVERSAL_HPP
 
 #include <details/DTK_DetailsAlgorithms.hpp> // overlap TODO:remove it
+#include <details/DTK_Predicate.hpp>
 
 #include <DTK_LinearBVH.hpp> // BVH
+#include <DTK_LinearBVH_decl.hpp> // BVH
 
 #include <functional>
 #include <list>
@@ -24,21 +26,29 @@ struct CollisionList
     void add( int i, int j ) { _ij.emplace_back( i, j ); }
     std::vector<std::pair<int, int>> _ij;
 };
-void traverseRecursive( CollisionList &list, BVH const &bvh,
+
+template <typename SC, typename LO, typename GO, typename NO>
+void traverseRecursive( CollisionList &list,
+                        ::DataTransferKit::BVH<SC, LO, GO, NO> const &bvh,
                         AABB const &queryAABB, int queryObjectIdx,
                         Node const *node );
-void traverseIterative( CollisionList &list, BVH const &bvh,
+
+template <typename SC, typename LO, typename GO, typename NO>
+void traverseIterative( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
                         AABB const &queryAABB, int queryObjectIdx );
 // TODO: get rid of this guy
 bool checkOverlap( AABB const &a, AABB const &b );
 
 // query k nearest neighbours
+template <typename SC, typename LO, typename GO, typename NO>
 std::list<std::pair<int, double>>
-nearest( BVH const &bvh, Point const &query_point, int k = 1 );
+nearest( BVH<SC, LO, GO, NO> const &bvh, Point const &query_point, int k = 1 );
 
 // radius search
-std::list<std::pair<int, double>>
-within( BVH const &bvh, Point const &query_point, double radius );
+template <typename SC, typename LO, typename GO, typename NO>
+std::list<std::pair<int, double>> within( BVH<SC, LO, GO, NO> const &bvh,
+                                          Point const &query_point,
+                                          double radius );
 
 // priority queue helper for nearest neighbor search
 using Value = std::pair<Node const *, double>;
@@ -87,63 +97,15 @@ struct SortedList
 };
 using Stack = std::stack<Value, std::vector<Value>>;
 
-struct NearestPredicateTag
-{
-};
-struct SpatialPredicateTag
-{
-};
-
-template <typename Geometry>
-struct Nearest
-{
-    using Tag = NearestPredicateTag;
-    Nearest( Geometry const &geometry, int k )
-        : _geometry( geometry )
-        , _k( k )
-    {
-    }
-
-    Geometry _geometry;
-    int _k;
-};
-
-template <typename Geometry>
-struct Within
-{
-    using Tag = SpatialPredicateTag;
-    Within( Geometry const &geometry, double radius )
-        : _geometry( geometry )
-        , _radius( radius )
-    {
-    }
-
-    Geometry _geometry;
-    double _radius;
-};
-
-template <typename Geometry>
-Nearest<Geometry> nearest( Geometry const &g, int k = 1 )
-{
-    return Nearest<Geometry>( g, k );
-}
-
-template <typename Geometry>
-Within<Geometry> within( Geometry const &g, double r )
-{
-    return Within<Geometry>( g, r );
-}
-
-// TODO: good job damien
-using DeviceType = BVH::DeviceType; // fixme
-
-template <typename Predicate>
-int query_dispatch( BVH const *bvh, Predicate const &pred,
-                    Kokkos::View<int *, DeviceType> out, NearestPredicateTag )
+template <typename SC, typename LO, typename GO, typename NO,
+          typename Predicate>
+int query_dispatch( BVH<SC, LO, GO, NO> const *bvh, Predicate const &pred,
+                    Kokkos::View<int *, typename NO::device_type> out,
+                    NearestPredicateTag )
 {
     auto nearest_neighbors = nearest( *bvh, pred._geometry, pred._k );
     int const n = nearest_neighbors.size();
-    out = Kokkos::View<int *, DeviceType>( "dummy", n );
+    out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
     int i = 0;
     for ( auto const &elem : nearest_neighbors )
     {
@@ -154,19 +116,172 @@ int query_dispatch( BVH const *bvh, Predicate const &pred,
     return n;
 }
 
-template <typename Predicate>
-int query_dispatch( BVH const *bvh, Predicate const &pred,
-                    Kokkos::View<int *, DeviceType> out, SpatialPredicateTag )
+template <typename SC, typename LO, typename GO, typename NO,
+          typename Predicate>
+int query_dispatch( BVH<SC, LO, GO, NO> const *bvh, Predicate const &pred,
+                    Kokkos::View<int *, typename NO::device_type> out,
+                    SpatialPredicateTag )
 {
     auto aaa = within( *bvh, pred._geometry, pred._radius );
     int const n = aaa.size();
-    out = Kokkos::View<int *, DeviceType>( "dummy", n );
+    out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
     int i = 0;
     for ( auto const &elem : aaa )
     {
         out[i++] = elem.first;
     }
     return n;
+}
+
+template <typename SC, typename LO, typename GO, typename NO>
+void traverseRecursive( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
+                        const AABB &queryAABB, int queryObjectIdx,
+                        Node const *node )
+{
+    // Bounding box overlaps the query => process node.
+    if ( checkOverlap( node->bounding_box, queryAABB ) )
+    {
+        // Leaf node => report collision.
+        if ( bvh.isLeaf( node ) )
+            list.add( queryObjectIdx, bvh.getIndex( node ) );
+
+        // Internal node => recurse to children.
+        else
+        {
+            Node const *childL = node->children.first;
+            Node const *childR = node->children.second;
+            traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childL );
+            traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childR );
+        }
+    }
+}
+
+template <typename SC, typename LO, typename GO, typename NO>
+void traverseIterative( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
+                        AABB const &queryAABB, int queryObjectIdx )
+{
+    // Allocate traversal stack from thread-local memory,
+    // and push NULL to indicate that there are no postponed nodes.
+    Node const *stack[64];
+    Node const **stackPtr = stack;
+    *stackPtr++ = NULL; // push
+
+    // Traverse nodes starting from the root.
+    Node const *node = bvh.getRoot();
+    do
+    {
+        // Check each child node for overlap.
+        Node const *childL = node->children.first;
+        Node const *childR = node->children.second;
+        bool overlapL = ( checkOverlap( queryAABB, childL->bounding_box ) );
+        bool overlapR = ( checkOverlap( queryAABB, childR->bounding_box ) );
+
+        // Query overlaps a leaf node => report collision.
+        if ( overlapL && bvh.isLeaf( childL ) )
+            list.add( queryObjectIdx, bvh.getIndex( childL ) );
+
+        if ( overlapR && bvh.isLeaf( childR ) )
+            list.add( queryObjectIdx, bvh.getIndex( childR ) );
+
+        // Query overlaps an internal node => traverse.
+        bool traverseL = ( overlapL && !bvh.isLeaf( childL ) );
+        bool traverseR = ( overlapR && !bvh.isLeaf( childR ) );
+
+        if ( !traverseL && !traverseR )
+            node = *--stackPtr; // pop
+        else
+        {
+            node = ( traverseL ) ? childL : childR;
+            if ( traverseL && traverseR )
+                *stackPtr++ = childR; // push
+        }
+    } while ( node != NULL );
+}
+
+template <typename SC, typename LO, typename GO, typename NO>
+std::list<std::pair<int, double>> within( BVH<SC, LO, GO, NO> const &bvh,
+                                          Point const &query_point,
+                                          double radius )
+{
+    std::list<std::pair<int, double>> ret;
+
+    Stack stack;
+
+    Node const *node = bvh.getRoot();
+    double node_distance = 0.0;
+    stack.emplace( node, node_distance );
+    while ( !stack.empty() )
+    {
+        std::tie( node, node_distance ) = stack.top();
+        stack.pop();
+        if ( bvh.isLeaf( node ) )
+        {
+            ret.emplace_back( bvh.getIndex( node ), node_distance );
+        }
+        else
+        {
+            for ( Node const *child :
+                  {node->children.first, node->children.second} )
+            {
+                double child_distance =
+                    distance( query_point, child->bounding_box );
+                if ( child_distance <= radius )
+                    stack.emplace( child, child_distance );
+            }
+        }
+    }
+    ret.sort(
+        []( std::pair<int, double> const &a, std::pair<int, double> const &b ) {
+            return a.second > b.second;
+        } );
+    return ret;
+}
+
+template <typename SC, typename LO, typename GO, typename NO>
+std::list<std::pair<int, double>> nearest( BVH<SC, LO, GO, NO> const &bvh,
+                                           Point const &query_point, int k )
+{
+    SortedList candidate_list( k );
+
+    PriorityQueue queue;
+    // priority does not matter for the root since the node will be processed
+    // directly and removed from the priority queue
+    // we don't even bother computing the distance to it
+    Node const *node = bvh.getRoot();
+    double node_distance = 0.0;
+    queue.emplace( node, node_distance );
+
+    double cutoff = Kokkos::ArithTraits<double>::max();
+    while ( !queue.empty() && node_distance < cutoff )
+    {
+        // get the node that is on top of the priority list (i.e. is the closest
+        // to the query point)
+        std::tie( node, node_distance ) = queue.top();
+        queue.pop();
+        if ( bvh.isLeaf( node ) )
+        {
+            if ( node_distance < cutoff )
+            {
+                // add leaf node to the candidate list
+                candidate_list.emplace( bvh.getIndex( node ), node_distance );
+                // update cutoff if k neighbors are in the list
+                if ( candidate_list.full() )
+                    std::tie( std::ignore, cutoff ) = candidate_list.back();
+            }
+        }
+        else
+        {
+            // insert children of the node in the priority list
+            for ( Node const *child :
+                  {node->children.first, node->children.second} )
+            {
+                double child_distance =
+                    distance( query_point, child->bounding_box );
+                queue.emplace( child, child_distance );
+            }
+        }
+    }
+    return candidate_list._sorted_list;
 }
 
 } // end namespace Details

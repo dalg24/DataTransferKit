@@ -280,24 +280,30 @@ APPEND_SET(HEADERS ${DIR}/${PACKAGE_NAME}_config.h )
 APPEND_SET(HEADERS ${DIR}/${PACKAGE_NAME}_ETIHelperMacros.h)
 
 # Explicitly instantiate classes.
-# IF (${PACKAGE_NAME}_ENABLE_EXPLICIT_INSTANTIATION)
+IF (${PACKAGE_NAME}_ENABLE_EXPLICIT_INSTANTIATION)
 
   # # Generate ETI .cpp files for DataTransferKit::<ClassName>.
   # DTK_PROCESS_ALL_SLGN_TEMPLATES(<CLASSNAME>_OUTPUT_FILES "DTK_ETI_SC_LO_GO_NT.tmpl" "<ClassName>" "<CLASSNAME>" "${${PACKAGE_NAME}_ETI_SCALARS}" "${${PACKAGE_NAME}_ETI_LORDS}" "${${PACKAGE_NAME}_ETI_GORDS}" "${${PACKAGE_NAME}_ETI_NODES}" TRUE)
   # LIST(APPEND SOURCES ${<CLASSNAME>_OUTPUT_FILES})
 
   #MESSAGE(STATUS "SOURCES = ${SOURCES}")
-#ENDIF()
+
+  # Generate ETI .cpp files for DataTransferKit::LinearBVH.
+  DTK_PROCESS_ALL_SLGN_TEMPLATES(LINEARBVH_OUTPUT_FILES
+    "DTK_ETI_SC_LO_GO_NT.tmpl" "LinearBVH" "LINEARBVH"
+    "${${PACKAGE_NAME}_ETI_SCALARS}" "${${PACKAGE_NAME}_ETI_LORDS}"
+    "${${PACKAGE_NAME}_ETI_GORDS}" "${${PACKAGE_NAME}_ETI_NODES}" TRUE)
+  LIST(APPEND SOURCES ${LINEARBVH_OUTPUT_FILES})
+
+ENDIF()
 
 APPEND_SET(HEADERS
-    DTK_LinearBVH.hpp
     details/DTK_DetailsTreeConstruction.hpp
     details/DTK_DetailsTreeTraversal.hpp
     details/DTK_DetailsAlgorithms.hpp
 )
 
 APPEND_SET(SOURCES
-    DTK_LinearBVH.cpp
     details/DTK_DetailsTreeConstruction.cpp
     details/DTK_DetailsTreeTraversal.cpp
     details/DTK_DetailsAlgorithms.cpp
