@@ -286,17 +286,22 @@ IF (${PACKAGE_NAME}_ENABLE_EXPLICIT_INSTANTIATION)
   DTK_PROCESS_ALL_SLGN_TEMPLATES(POINTCLOUD_OUTPUT_FILES "DTK_ETI_SC_LO_GO_NT.tmpl" "PointCloud" "POINTCLOUD" "${${PACKAGE_NAME}_ETI_SCALARS}" "${${PACKAGE_NAME}_ETI_LORDS}" "${${PACKAGE_NAME}_ETI_GORDS}" "${${PACKAGE_NAME}_ETI_NODES}" TRUE)
   LIST(APPEND SOURCES ${POINTCLOUD_OUTPUT_FILES})
 
+  # Generate ETI .cpp files for DataTransferKit::LinearBVH.
+  DTK_PROCESS_ALL_SLGN_TEMPLATES(LINEARBVH_OUTPUT_FILES
+    "DTK_ETI_SC_LO_GO_NT.tmpl" "LinearBVH" "LINEARBVH"
+    "${${PACKAGE_NAME}_ETI_SCALARS}" "${${PACKAGE_NAME}_ETI_LORDS}"
+    "${${PACKAGE_NAME}_ETI_GORDS}" "${${PACKAGE_NAME}_ETI_NODES}" TRUE)
+  LIST(APPEND SOURCES ${LINEARBVH_OUTPUT_FILES})
+
 ENDIF()
 
 APPEND_SET(HEADERS
-    DTK_LinearBVH.hpp
     details/DTK_DetailsTreeConstruction.hpp
     details/DTK_DetailsTreeTraversal.hpp
     details/DTK_DetailsAlgorithms.hpp
 )
 
 APPEND_SET(SOURCES
-    DTK_LinearBVH.cpp
     details/DTK_DetailsTreeConstruction.cpp
     details/DTK_DetailsTreeTraversal.cpp
     details/DTK_DetailsAlgorithms.cpp
