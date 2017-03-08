@@ -18,8 +18,18 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
                                        int i );
 // COMMENT: most of these could/should be protected function in BVH to avoid
 // passing all this data around
+
+template <typename ExecutionSpace>
 void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes, int n,
-                                     AABB &scene_bounding_box );
+                                     AABB &scene_bounding_box )
+{
+    Functor::ExpandBoxWithBox functor( bounding_boxes );
+    Kokkos::parallel_reduce( "calculate_bouding_of_the_scene",
+                             Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
+                             functor, scene_bounding_box );
+    Kokkos::fence();
+}
+
 void assignMortonCodes( AABB const *bounding_boxes, unsigned int *morton_codes,
                         int n, AABB const &scene_bounding_box );
 void sortObjects( unsigned int *morton_codes, int *object_ids, int n );
