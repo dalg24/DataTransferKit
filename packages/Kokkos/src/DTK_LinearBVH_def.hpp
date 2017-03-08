@@ -92,16 +92,17 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     // determine the bounding box of the scene
     Details::calculateBoundingBoxOfTheScene<ExecutionSpace>(
         bounding_boxes, n, _internal_nodes[0].bounding_box );
+
     // calculate morton code of all objects
     Kokkos::View<unsigned int *, DeviceType> morton_indices( "morton", n );
-
     Functor::SetMax<SC, LO, GO, NO> set_max_functor( morton_indices );
     Kokkos::parallel_for( "set_morton_indices",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_max_functor );
     Kokkos::fence();
-    Details::assignMortonCodes( bounding_boxes, morton_indices.data(), n,
-                                _internal_nodes[0].bounding_box );
+    Details::assignMortonCodes<ExecutionSpace>(
+        bounding_boxes, morton_indices.data(), n,
+        _internal_nodes[0].bounding_box );
 
     // sort them along the Z-order space-filling curve
     Functor::SetIndices<SC, LO, GO, NO> set_indices_functor( _indices );

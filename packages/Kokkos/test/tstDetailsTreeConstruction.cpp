@@ -56,7 +56,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, morton_codes, SC, LO, GO, NO )
 
     std::vector<unsigned int> morton_codes(
         n, Kokkos::ArithTraits<unsigned int>::max() );
-    dtk::assignMortonCodes( boxes.data(), morton_codes.data(), n, scene );
+    dtk::assignMortonCodes<ExecutionSpace>( boxes.data(), morton_codes.data(),
+                                            n, scene );
     for ( int i = 0; i < n; ++i )
         TEST_EQUALITY( morton_codes[i], ref[i] );
 }

@@ -9,9 +9,33 @@ namespace DataTransferKit
 {
 namespace Details
 {
+namespace Functor
+{
+AssignMortonCodes::AssignMortonCodes( Box const *bounding_boxes,
+                                      unsigned int *morton_codes,
+                                      Box const &scene_bounding_box )
+    : _bounding_boxes( bounding_boxes )
+    , _morton_codes( morton_codes )
+    , _scene_bounding_box( scene_bounding_box )
+{
+}
 
-// Expands a 10-bit integer into 30 bits
-// by inserting 2 zeros after each bit.
+void AssignMortonCodes::operator()( int const i ) const
+{
+    Point xyz;
+    double a, b;
+    centroid( _bounding_boxes[i], xyz );
+    // scale coordinates with respect to bounding box of the scene
+    for ( int d = 0; d < 3; ++d )
+    {
+        a = _scene_bounding_box[2 * d];
+        b = _scene_bounding_box[2 * d + 1];
+        xyz[d] = ( xyz[d] - a ) / ( b - a );
+    }
+    _morton_codes[i] = morton3D( xyz[0], xyz[1], xyz[2] );
+}
+}
+
 unsigned int expandBits( unsigned int v )
 {
     v = ( v * 0x00010001u ) & 0xFF0000FFu;
@@ -169,27 +193,6 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
     } while ( step > 1 );
     int j = i + split * direction;
     return {min( i, j ), max( i, j )};
-}
-
-// to assign the Morton code for a given object, we use the centroid point of
-// its bounding box, and express it relative to the bounding box of the scene.
-void assignMortonCodes( AABB const *bounding_boxes, unsigned int *morton_codes,
-                        int n, AABB const &scene_bounding_box )
-{
-    Point xyz;
-    double a, b;
-    for ( int i = 0; i < n; ++i ) // parallel for
-    {
-        centroid( bounding_boxes[i], xyz );
-        // scale coordinates with respect to bounding box of the scene
-        for ( int d = 0; d < 3; ++d )
-        {
-            a = scene_bounding_box[2 * d + 0];
-            b = scene_bounding_box[2 * d + 1];
-            xyz[d] = ( xyz[d] - a ) / ( b - a );
-        }
-        morton_codes[i] = morton3D( xyz[0], xyz[1], xyz[2] );
-    }
 }
 
 void sortObjects( unsigned int *morton_codes, int *object_ids, int n )
