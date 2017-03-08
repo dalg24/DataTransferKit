@@ -171,14 +171,6 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
     return {min( i, j ), max( i, j )};
 }
 
-void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes, int n,
-                                     AABB &scene_bounding_box )
-{
-    // QUESTION: precondition on sceneBoundingBox?
-    for ( int i = 0; i < n; ++i ) // parallel reduce
-        expand( scene_bounding_box, bounding_boxes[i] );
-}
-
 // to assign the Morton code for a given object, we use the centroid point of
 // its bounding box, and express it relative to the bounding box of the scene.
 void assignMortonCodes( AABB const *bounding_boxes, unsigned int *morton_codes,

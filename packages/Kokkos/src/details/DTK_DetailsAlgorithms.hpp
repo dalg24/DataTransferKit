@@ -2,6 +2,7 @@
 #define DTK_DETAILS_ALGORITHMS_HPP
 
 #include <DTK_AABB.hpp>
+#include <DTK_KokkosHelpers.hpp>
 
 namespace DataTransferKit
 {
@@ -22,6 +23,60 @@ void expand( Box &box, Box const &other );
 bool overlaps( Box const &box, Box const &other );
 // calculate the centroid of a box
 void centroid( Box const &box, Point &c );
+
+namespace Functor
+{
+using Box = AABB;
+
+class ExpandBoxWithBox
+{
+  public:
+    ExpandBoxWithBox( Box const *bounding_boxes )
+        : _greatest( Kokkos::ArithTraits<double>::max() )
+        , _lowest( -_greatest )
+        , _bounding_boxes( bounding_boxes )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void init( Box &box )
+    {
+        for ( int d = 0; d < 3; ++d )
+        {
+            box[2 * d] = _greatest;
+            box[2 * d + 1] = _lowest;
+        }
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i, Box &box ) const
+    {
+        for ( int d = 0; d < 3; ++d )
+        {
+            box[2 * d] =
+                KokkosHelpers::min( _bounding_boxes[i][2 * d], box[2 * d] );
+            box[2 * d + 1] = KokkosHelpers::max( _bounding_boxes[i][2 * d + 1],
+                                                 box[2 * d + 1] );
+        }
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void join( Box &dst, Box const &src ) const
+    {
+        for ( int d = 0; d < 3; ++d )
+        {
+            dst[2 * d] = KokkosHelpers::min( src[2 * d], dst[2 * d] );
+            dst[2 * d + 1] =
+                KokkosHelpers::max( src[2 * d + 1], dst[2 * d + 1] );
+        }
+    }
+
+  private:
+    double const _greatest;
+    double const _lowest;
+    Box const *_bounding_boxes;
+};
+}
 
 } // end namespace Details
 } // end namespace DataTransferKit

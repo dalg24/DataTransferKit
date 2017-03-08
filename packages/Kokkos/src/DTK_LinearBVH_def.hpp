@@ -90,8 +90,8 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     using ExecutionSpace = typename DeviceType::execution_space;
 
     // determine the bounding box of the scene
-    Details::calculateBoundingBoxOfTheScene( bounding_boxes, n,
-                                             _internal_nodes[0].bounding_box );
+    Details::calculateBoundingBoxOfTheScene<ExecutionSpace>(
+        bounding_boxes, n, _internal_nodes[0].bounding_box );
     // calculate morton code of all objects
     Kokkos::View<unsigned int *, DeviceType> morton_indices( "morton", n );
 

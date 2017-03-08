@@ -11,7 +11,7 @@
 
 namespace dtk = DataTransferKit::Details;
 
-TEUCHOS_UNIT_TEST( DetailsBVH, morton_codes )
+TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, morton_codes, SC, LO, GO, NO )
 {
     std::vector<dtk::Point> points = {
         dtk::Point( {0.0, 0.0, 0.0} ),
@@ -45,7 +45,9 @@ TEUCHOS_UNIT_TEST( DetailsBVH, morton_codes )
         dtk::expand( boxes[i], points[i] );
 
     dtk::Box scene;
-    dtk::calculateBoundingBoxOfTheScene( boxes.data(), n, scene );
+    using ExecutionSpace = typename NO::device_type::execution_space;
+    dtk::calculateBoundingBoxOfTheScene<ExecutionSpace>( boxes.data(), n,
+                                                         scene );
     for ( int d = 0; d < 3; ++d )
     {
         TEST_EQUALITY( scene[2 * d + 0], 0.0 );
@@ -203,3 +205,17 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
 
     TEST_EQUALITY( sol.str().compare( ref.str() ), 0 );
 }
+
+// Include the test macros.
+#include "DataTransferKitKokkos_ETIHelperMacros.h"
+
+// Create the test group
+#define UNIT_TEST_GROUP( SCALAR, LO, GO, NODE )                                \
+    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, morton_codes, SCALAR,    \
+                                          LO, GO, NODE )
+
+// Demangle the types
+DTK_ETI_MANGLING_TYPEDEFS()
+
+// Instantiate the tests
+DTK_INSTANTIATE_SLGN( UNIT_TEST_GROUP )
