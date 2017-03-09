@@ -119,8 +119,9 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_bounding_boxes_functor );
     Kokkos::fence();
-    Details::generateHierarchy( morton_indices.data(), n, _leaf_nodes.data(),
-                                _internal_nodes.data() );
+    Details::generateHierarchy<ExecutionSpace>(
+        morton_indices.data(), n, _leaf_nodes.data(), _internal_nodes.data() );
+
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
     Details::calculateBoundingBoxes( _leaf_nodes.data(), _internal_nodes.data(),

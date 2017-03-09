@@ -141,7 +141,8 @@ TEUCHOS_UNIT_TEST( DetailsBVH, common_prefix )
     TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 12, 13 ), -1 );
 }
 
-TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
+TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
+                                   LO, GO, NO )
 {
     // This is the example from the articles by Karras.
     // See
@@ -201,9 +202,10 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
         }
     };
 
-    DataTransferKit::Details::generateHierarchy( sorted_morton_codes.data(), n,
-                                                 leaf_nodes.data(),
-                                                 internal_nodes.data() );
+    using ExecutionSpace = typename NO::device_type::execution_space;
+    DataTransferKit::Details::generateHierarchy<ExecutionSpace>(
+        sorted_morton_codes.data(), n, leaf_nodes.data(),
+        internal_nodes.data() );
 
     DataTransferKit::Node *root = internal_nodes.data();
     TEST_ASSERT( root->parent == nullptr );
@@ -223,7 +225,9 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
     TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, morton_codes, SCALAR,    \
                                           LO, GO, NODE )                       \
     TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, indirect_sort, SCALAR,   \
-                                          LO, GO, NODE )
+                                          LO, GO, NODE )                       \
+    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(                                      \
+        DetailsBVH, example_tree_construction, SCALAR, LO, GO, NODE )
 // Demangle the types
 DTK_ETI_MANGLING_TYPEDEFS()
 
