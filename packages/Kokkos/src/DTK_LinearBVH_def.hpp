@@ -110,7 +110,7 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_indices_functor );
     Kokkos::fence();
-    Details::sortObjects( morton_indices.data(), _indices.data(), n );
+    Details::sortObjects( morton_indices, _indices, n );
 
     // generate bounding volume hierarchy
     Functor::SetBoundingBoxes<SC, LO, GO, NO> set_bounding_boxes_functor(
