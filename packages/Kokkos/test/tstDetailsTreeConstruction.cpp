@@ -62,26 +62,34 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, morton_codes, SC, LO, GO, NO )
         TEST_EQUALITY( morton_codes[i], ref[i] );
 }
 
-TEUCHOS_UNIT_TEST( DetailsBVH, indirect_sort )
+TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, indirect_sort, SC, LO, GO, NO )
 {
     // need a functionality that sort objects based on their Morton code and
     // also returns the indices in the original configuration
 
     // dummy unsorted Morton codes and corresponding sorted indices as reference
     // solution
-    std::vector<unsigned int> k = {2, 1, 4, 3};
+    //
+    using DeviceType = typename NO::device_type;
+    int constexpr n = 4;
+    Kokkos::View<unsigned int *, DeviceType> k( "k", n );
+    k[0] = 2;
+    k[1] = 1;
+    k[2] = 4;
+    k[3] = 3;
     std::vector<int> ref = {1, 0, 3, 2};
     // distribute ids to unsorted objects
-    int const n = k.size();
-    std::vector<int> ids( n );
-    std::iota( ids.begin(), ids.end(), 0 );
+    Kokkos::View<int *, DeviceType> ids( "ids", n );
+    ids[0] = 0;
+    ids[1] = 1;
+    ids[2] = 2;
+    ids[3] = 3;
     // sort morton codes and object ids
-    dtk::sortObjects( k.data(), ids.data(), n );
+    dtk::sortObjects( k, ids, n );
     // check that they are sorted
-    TEST_ASSERT( std::is_sorted( k.begin(), k.end() ) );
+    TEST_ASSERT( std::is_sorted( k.data(), k.data() + n ) );
     // check that ids are properly ordered
-    for ( int i = 0; i < n; ++i )
-        TEST_EQUALITY( ids[i], ref[i] );
+    TEST_COMPARE_ARRAYS( ids, ref );
 }
 
 TEUCHOS_UNIT_TEST( DetailsBVH, number_of_leading_zero_bits )
@@ -213,8 +221,9 @@ TEUCHOS_UNIT_TEST( DetailsBVH, example_tree_construction )
 // Create the test group
 #define UNIT_TEST_GROUP( SCALAR, LO, GO, NODE )                                \
     TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, morton_codes, SCALAR,    \
+                                          LO, GO, NODE )                       \
+    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, indirect_sort, SCALAR,   \
                                           LO, GO, NODE )
-
 // Demangle the types
 DTK_ETI_MANGLING_TYPEDEFS()
 
