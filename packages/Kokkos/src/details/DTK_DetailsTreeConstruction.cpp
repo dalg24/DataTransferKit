@@ -83,6 +83,31 @@ void GenerateHierarchy::operator()( int const i ) const
     childA->parent = &_internal_nodes[i];
     childB->parent = &_internal_nodes[i];
 }
+
+CalculateBoundingBoxes::CalculateBoundingBoxes(
+    Node const *leaf_nodes, Node *root,
+    std::vector<std::atomic_flag> &atomic_flags )
+    : _leaf_nodes( leaf_nodes )
+    , _root( root )
+    , _atomic_flags( atomic_flags )
+{
+}
+
+void CalculateBoundingBoxes::operator()( int const i ) const
+{
+    Node *node = _leaf_nodes[i].parent;
+    while ( node != _root )
+    {
+        if ( !_atomic_flags[node - _root].test_and_set() )
+            break;
+        for ( Node *child : {node->children.first, node->children.second} )
+            expand( node->bounding_box, child->bounding_box );
+        node = node->parent;
+    }
+    // NOTE: could stop at node != root and then just check that what we
+    // computed earlier (bounding box of the scene) is indeed the union of
+    // the two children.
+}
 }
 
 unsigned int expandBits( unsigned int v )
@@ -243,35 +268,5 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
     int j = i + split * direction;
     return {min( i, j ), max( i, j )};
 }
-
-void calculateBoundingBoxes( Node const *leaf_nodes, Node *internal_nodes,
-                             int n )
-{
-    // possibly use Kokkos::atomic_fetch_add() here
-    std::vector<std::atomic_flag> atomic_flags( n - 1 );
-    // flags are in an unspecified state on construction
-    // their value cannot be copied/moved (constructor and assigment deleted)
-    // so we have to loop over them and initialize them to the clear state
-    for ( auto &flag : atomic_flags )
-        flag.clear();
-
-    Node *root = internal_nodes;
-    for ( int i = 0; i < n; ++i ) // parallel for
-    {
-        Node *node = leaf_nodes[i].parent;
-        while ( node != root )
-        {
-            if ( !atomic_flags[node - root].test_and_set() )
-                break;
-            for ( Node *child : {node->children.first, node->children.second} )
-                expand( node->bounding_box, child->bounding_box );
-            node = node->parent;
-        }
-        // NOTE: could stop at node != root and then just check that what we
-        // computed earlier (bounding box of the scene) is indeed the union of
-        // the two children.
-    }
-}
-
 } // end namespace Details
 } // end namespace DataTransferKit
