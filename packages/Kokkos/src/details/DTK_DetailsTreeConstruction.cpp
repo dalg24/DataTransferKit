@@ -195,19 +195,6 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
     return {min( i, j ), max( i, j )};
 }
 
-void sortObjects( unsigned int *morton_codes, int *object_ids, int n )
-{
-    using std::sort;
-    // possibly use thrust::sort()
-    // see https://thrust.github.io
-    sort( object_ids, object_ids + n,
-          [morton_codes]( int const &i, int const &j ) {
-              return morton_codes[i] < morton_codes[j];
-          } );
-    // TODO: in-place permutation of mortonCodes rather than 2nd sort
-    sort( morton_codes, morton_codes + n );
-}
-
 // from "Thinking Parallel, Part III: Tree Construction on the GPU" by Karras
 Node *generateHierarchy( unsigned int *sorted_morton_codes, int n,
                          Node *leaf_nodes, Node *internal_nodes )
