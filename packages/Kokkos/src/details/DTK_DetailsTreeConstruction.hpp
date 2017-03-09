@@ -34,49 +34,20 @@ class AssignMortonCodes
     Box const &_scene_bounding_box;
 };
 
-// template <typename DeviceType>
-// class AssociateIndices
-//{
-//  public:
-//    AssociateIndices(Kokkos::View<unsigned int *[2],DeviceType> morton_codes,
-//        Kokkos::View<int*,DeviceType> object_ids)
-//      :
-//        _morton_codes(morton_codes),
-//        _object_ids(object_ids)
-//    {}
-//
-//    KOKKOS_INLINE_FUNCTION
-//    void operator() (int const i) const
-//    {
-//      _morton_codes(i,1) = _object_ids(i);
-//    }
-//
-//  private:
-//    Kokkos::View<unsigned int *[2], DeviceType> _morton_codes;
-//    Kokkos::View<int*, DeviceType> _object_ids;
-//};
-//
-// template <typename DeviceType>
-// class CopyIndices
-//{
-//  public:
-//    CopyIndices(Kokkos::View<unsigned int *[2],DeviceType> morton_codes,
-//        Kokkos::View<int*,DeviceType> object_ids)
-//      :
-//        _morton_codes(morton_codes),
-//        _object_ids(object_ids)
-//    {}
-//
-//    KOKKOS_INLINE_FUNCTION
-//    void operator() (int const i) const
-//    {
-//      _object_ids(i) = _morton_codes(i,1);
-//    }
-//
-//  private:
-//    Kokkos::View<unsigned int *[2], DeviceType> _morton_codes;
-//    Kokkos::View<int*, DeviceType> _object_ids;
-//};
+class GenerateHierarchy
+{
+  public:
+    GenerateHierarchy( unsigned int *sorted_morton_codes, Node *leaf_nodes,
+                       Node *internal_nodes, int n );
+
+    void operator()( int const i ) const;
+
+  private:
+    unsigned int *_sorted_morton_codes;
+    Node *_leaf_nodes;
+    Node *_internal_nodes;
+    int _n;
+};
 }
 
 // utilities for tree construction
@@ -138,8 +109,21 @@ void sortObjects( Kokkos::View<unsigned int *, DeviceType> morton_codes,
     bin_sort.sort( object_ids );
 }
 
+template <typename ExecutionSpace>
 Node *generateHierarchy( unsigned int *sorted_morton_codes, int n,
-                         Node *leaf_nodes, Node *internal_nodes );
+                         Node *leaf_nodes, Node *internal_nodes )
+{
+    Functor::GenerateHierarchy functor( sorted_morton_codes, leaf_nodes,
+                                        internal_nodes, n );
+    Kokkos::parallel_for( "generate_hierarchy",
+                          Kokkos::RangePolicy<ExecutionSpace>( 0, n - 1 ),
+                          functor );
+    Kokkos::fence();
+
+    // Node 0 is the root.
+    return &internal_nodes[0];
+}
+
 void calculateBoundingBoxes( Node const *leaf_nodes, Node *internal_nodes,
                              int n );
 

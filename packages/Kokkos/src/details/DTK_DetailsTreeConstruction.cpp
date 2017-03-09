@@ -34,6 +34,55 @@ void AssignMortonCodes::operator()( int const i ) const
     }
     _morton_codes[i] = morton3D( xyz[0], xyz[1], xyz[2] );
 }
+
+GenerateHierarchy::GenerateHierarchy( unsigned int *sorted_morton_codes,
+                                      Node *leaf_nodes, Node *internal_nodes,
+                                      int n )
+    : _sorted_morton_codes( sorted_morton_codes )
+    , _leaf_nodes( leaf_nodes )
+    , _internal_nodes( internal_nodes )
+    , _n( n )
+{
+}
+
+// from "Thinking Parallel, Part III: Tree Construction on the GPU" by Karras
+void GenerateHierarchy::operator()( int const i ) const
+{
+    // Construct internal nodes.
+    // Find out which range of objects the node corresponds to.
+    // (This is where the magic happens!)
+
+    auto range = determineRange( _sorted_morton_codes, _n, i );
+    int first = range.first;
+    int last = range.second;
+
+    // Determine where to split the range.
+
+    int split = findSplit( _sorted_morton_codes, first, last );
+
+    // Select childA.
+
+    Node *childA;
+    if ( split == first )
+        childA = &_leaf_nodes[split];
+    else
+        childA = &_internal_nodes[split];
+
+    // Select childB.
+
+    Node *childB;
+    if ( split + 1 == last )
+        childB = &_leaf_nodes[split + 1];
+    else
+        childB = &_internal_nodes[split + 1];
+
+    // Record parent-child relationships.
+
+    _internal_nodes[i].children.first = childA;
+    _internal_nodes[i].children.second = childB;
+    childA->parent = &_internal_nodes[i];
+    childB->parent = &_internal_nodes[i];
+}
 }
 
 unsigned int expandBits( unsigned int v )
@@ -193,54 +242,6 @@ Kokkos::pair<int, int> determineRange( unsigned int *sorted_morton_codes, int n,
     } while ( step > 1 );
     int j = i + split * direction;
     return {min( i, j ), max( i, j )};
-}
-
-// from "Thinking Parallel, Part III: Tree Construction on the GPU" by Karras
-Node *generateHierarchy( unsigned int *sorted_morton_codes, int n,
-                         Node *leaf_nodes, Node *internal_nodes )
-{
-    // Construct internal nodes.
-
-    for ( int i = 0; i < n - 1; ++i ) // in parallel
-    {
-        // Find out which range of objects the node corresponds to.
-        // (This is where the magic happens!)
-
-        auto range = determineRange( sorted_morton_codes, n, i );
-        int first = range.first;
-        int last = range.second;
-
-        // Determine where to split the range.
-
-        int split = findSplit( sorted_morton_codes, first, last );
-
-        // Select childA.
-
-        Node *childA;
-        if ( split == first )
-            childA = &leaf_nodes[split];
-        else
-            childA = &internal_nodes[split];
-
-        // Select childB.
-
-        Node *childB;
-        if ( split + 1 == last )
-            childB = &leaf_nodes[split + 1];
-        else
-            childB = &internal_nodes[split + 1];
-
-        // Record parent-child relationships.
-
-        internal_nodes[i].children.first = childA;
-        internal_nodes[i].children.second = childB;
-        childA->parent = &internal_nodes[i];
-        childB->parent = &internal_nodes[i];
-    }
-
-    // Node 0 is the root.
-
-    return &internal_nodes[0];
 }
 
 void calculateBoundingBoxes( Node const *leaf_nodes, Node *internal_nodes,
