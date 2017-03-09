@@ -48,6 +48,20 @@ class GenerateHierarchy
     Node *_internal_nodes;
     int _n;
 };
+
+class CalculateBoundingBoxes
+{
+  public:
+    CalculateBoundingBoxes( Node const *leaf_nodes, Node *root,
+                            std::vector<std::atomic_flag> &atomic_flags );
+
+    void operator()( int const i ) const;
+
+  private:
+    Node const *_leaf_nodes;
+    Node *_root;
+    std::vector<std::atomic_flag> &_atomic_flags;
+};
 }
 
 // utilities for tree construction
@@ -124,8 +138,26 @@ Node *generateHierarchy( unsigned int *sorted_morton_codes, int n,
     return &internal_nodes[0];
 }
 
+template <typename ExecutionSpace>
 void calculateBoundingBoxes( Node const *leaf_nodes, Node *internal_nodes,
-                             int n );
+                             int n )
+{
+    // possibly use Kokkos::atomic_fetch_add() here
+    std::vector<std::atomic_flag> atomic_flags( n - 1 );
+    // flags are in an unspecified state on construction
+    // their value cannot be copied/moved (constructor and assigment deleted)
+    // so we have to loop over them and initialize them to the clear state
+    for ( auto &flag : atomic_flags )
+        flag.clear();
+
+    Node *root = internal_nodes;
+
+    Functor::CalculateBoundingBoxes functor( leaf_nodes, root, atomic_flags );
+    Kokkos::parallel_for( "calculate_bounding_boxes",
+                          Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
+                          functor );
+    Kokkos::fence();
+}
 
 } // end namespace Details
 } // end namespace DataTransferKit
