@@ -10,7 +10,7 @@
 
 namespace DataTransferKit
 {
-template <typename SC, typename LO, typename GO, typename NO>
+template <typename NO>
 struct TreeConstruction
 {
   public:
@@ -19,8 +19,9 @@ struct TreeConstruction
 
     // COMMENT: most of these could/should be protected function in BVH to avoid
     // passing all this data around
-    static void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes, int n,
-                                         AABB &scene_bounding_box ) const;
+    static void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes,
+                                                int n,
+                                                AABB &scene_bounding_box );
 
     // to assign the Morton code for a given object, we use the centroid point
     // of
@@ -29,20 +30,21 @@ struct TreeConstruction
     static void
     assignMortonCodes( AABB const *bounding_boxes,
                        Kokkos::View<unsigned int *, DeviceType> morton_codes,
-                       int n, AABB const &scene_bounding_box ) const;
+                       int n, AABB const &scene_bounding_box );
 
-    static void sortObjects( Kokkos::View<unsigned int *, DeviceType> morton_codes,
-                      Kokkos::View<int *, DeviceType> object_ids, int n ) const;
+    static void
+    sortObjects( Kokkos::View<unsigned int *, DeviceType> morton_codes,
+                 Kokkos::View<int *, DeviceType> object_ids, int n );
 
     static Node *generateHierarchy(
         Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n,
         Kokkos::View<Node *, DeviceType> leaf_nodes,
-        Kokkos::View<Node *, DeviceType> internal_nodes ) const;
+        Kokkos::View<Node *, DeviceType> internal_nodes );
 
     static void
     calculateBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
                             Kokkos::View<Node *, DeviceType> internal_nodes,
-                            int n ) const;
+                            int n );
 
     static int commonPrefix( Kokkos::View<unsigned int *, DeviceType> k, int n,
                              int i, int j );

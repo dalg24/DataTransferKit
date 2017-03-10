@@ -11,13 +11,12 @@
 #include <iostream>
 #include <random>
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, tag_dispatching, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, tag_dispatching, NO )
 {
     std::vector<DataTransferKit::AABB> boxes = {{{0, 0, 0, 0, 0, 0}},
                                                 {{1, 1, 1, 1, 1, 1}}};
-    DataTransferKit::BVH<SC, LO, GO, NO> bvh( boxes.data(), boxes.size() );
-    using DeviceType =
-        typename DataTransferKit::BVH<SC, LO, GO, NO>::DeviceType;
+    DataTransferKit::BVH<NO> bvh( boxes.data(), boxes.size() );
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
     Kokkos::View<int *, DeviceType> results;
     bvh.query( DataTransferKit::Details::nearest(
                    DataTransferKit::Details::Point{0, 0, 0}, 1 ),
@@ -27,7 +26,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, tag_dispatching, SC, LO, GO, NO )
                results );
 }
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, structured_grid, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
 {
     double Lx = 100.0;
     double Ly = 100.0;
@@ -51,8 +50,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, structured_grid, SC, LO, GO, NO )
             }
 
     DataTransferKit::Details::CollisionList collision_list;
-    DataTransferKit::BVH<SC, LO, GO, NO> bvh( bounding_boxes.data(),
-                                              nx * ny * nz );
+    DataTransferKit::BVH<NO> bvh( bounding_boxes.data(), nx * ny * nz );
 
     // (i) use same objects for the queries than the objects we constructed the
     // BVH
@@ -244,7 +242,7 @@ std::vector<std::array<double, 3>> make_random_cloud( double Lx, double Ly,
     return cloud;
 }
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, rtree, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
 {
     namespace bg = boost::geometry;
     namespace bgi = boost::geometry::index;
@@ -284,7 +282,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, rtree, SC, LO, GO, NO )
             x, x, y, y, z, z,
         };
     }
-    DataTransferKit::BVH<SC, LO, GO, NO> bvh( bounding_boxes.data(), n );
+    DataTransferKit::BVH<NO> bvh( bounding_boxes.data(), n );
 
     // random points for radius search and kNN queries
     // compare our solution against Boost R-tree
@@ -376,16 +374,13 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, rtree, SC, LO, GO, NO )
 #include "DataTransferKitKokkos_ETIHelperMacros.h"
 
 // Create the test group
-#define UNIT_TEST_GROUP( SCALAR, LO, GO, NODE )                                \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( LinearBVH, tag_dispatching, SCALAR,  \
-                                          LO, GO, NODE )                       \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( LinearBVH, structured_grid, SCALAR,  \
-                                          LO, GO, NODE )                       \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( LinearBVH, rtree, SCALAR, LO, GO,    \
-                                          NODE )
+#define UNIT_TEST_GROUP( NODE )                                                \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( LinearBVH, tag_dispatching, NODE )   \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( LinearBVH, structured_grid, NODE )   \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( LinearBVH, rtree, NODE )
 
 // Demangle the types
 DTK_ETI_MANGLING_TYPEDEFS()
 
 // Instantiate the tests
-DTK_INSTANTIATE_SLGN( UNIT_TEST_GROUP )
+DTK_INSTANTIATE_N( UNIT_TEST_GROUP )

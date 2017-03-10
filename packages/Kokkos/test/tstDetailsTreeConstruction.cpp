@@ -11,7 +11,7 @@
 
 namespace dtk = DataTransferKit::Details;
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, morton_codes, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, morton_codes, NO )
 {
     std::vector<dtk::Point> points = {
         dtk::Point( {0.0, 0.0, 0.0} ),
@@ -46,7 +46,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, morton_codes, SC, LO, GO, NO )
 
     dtk::Box scene;
     using DeviceType = typename NO::device_type;
-    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    DataTransferKit::TreeConstruction<NO> tc;
     tc.calculateBoundingBoxOfTheScene( boxes.data(), n, scene );
     for ( int d = 0; d < 3; ++d )
     {
@@ -61,7 +61,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, morton_codes, SC, LO, GO, NO )
     TEST_COMPARE_ARRAYS( morton_codes, ref );
 }
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, indirect_sort, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, indirect_sort, NO )
 {
     // need a functionality that sort objects based on their Morton code and
     // also returns the indices in the original configuration
@@ -84,7 +84,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, indirect_sort, SC, LO, GO, NO )
     ids[2] = 2;
     ids[3] = 3;
     // sort morton codes and object ids
-    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    DataTransferKit::TreeConstruction<NO> tc;
     tc.sortObjects( k, ids, n );
     // check that they are sorted
     TEST_ASSERT( std::is_sorted( k.data(), k.data() + n ) );
@@ -117,7 +117,7 @@ TEUCHOS_UNIT_TEST( DetailsBVH, number_of_leading_zero_bits )
     TEST_EQUALITY( dtk::countLeadingZeros( 4 ^ 3 ), 29 );
 }
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, common_prefix, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, common_prefix, NO )
 {
     using DeviceType = typename NO::device_type;
     int const n = 13;
@@ -137,7 +137,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, common_prefix, SC, LO, GO, NO )
     fi[11] = 89;
     fi[12] = 144;
 
-    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    DataTransferKit::TreeConstruction<NO> tc;
     TEST_EQUALITY( tc.commonPrefix( fi, n, 0, 0 ), 32 + 32 );
     TEST_EQUALITY( tc.commonPrefix( fi, n, 0, 1 ), 31 );
     TEST_EQUALITY( tc.commonPrefix( fi, n, 1, 0 ), 31 );
@@ -154,8 +154,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, common_prefix, SC, LO, GO, NO )
     TEST_EQUALITY( tc.commonPrefix( fi, n, 12, 13 ), -1 );
 }
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
-                                   LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, example_tree_construction, NO )
 {
     // This is the example from the articles by Karras.
     // See
@@ -219,7 +218,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
         }
     };
 
-    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    DataTransferKit::TreeConstruction<NO> tc;
     tc.generateHierarchy( sorted_morton_codes, n, leaf_nodes, internal_nodes );
 
     DataTransferKit::Node *root = internal_nodes.data();
@@ -236,17 +235,14 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
 #include "DataTransferKitKokkos_ETIHelperMacros.h"
 
 // Create the test group
-#define UNIT_TEST_GROUP( SCALAR, LO, GO, NODE )                                \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, morton_codes, SCALAR,    \
-                                          LO, GO, NODE )                       \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, indirect_sort, SCALAR,   \
-                                          LO, GO, NODE )                       \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, common_prefix, SCALAR,   \
-                                          LO, GO, NODE )                       \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(                                      \
-        DetailsBVH, example_tree_construction, SCALAR, LO, GO, NODE )
+#define UNIT_TEST_GROUP( NODE )                                                \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( DetailsBVH, morton_codes, NODE )     \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( DetailsBVH, indirect_sort, NODE )    \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( DetailsBVH, common_prefix, NODE )    \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( DetailsBVH,                          \
+                                          example_tree_construction, NODE )
 // Demangle the types
 DTK_ETI_MANGLING_TYPEDEFS()
 
 // Instantiate the tests
-DTK_INSTANTIATE_SLGN( UNIT_TEST_GROUP )
+DTK_INSTANTIATE_N( UNIT_TEST_GROUP )
