@@ -12,7 +12,7 @@ namespace DataTransferKit
 {
 namespace Functor
 {
-template <typename SC, typename LO, typename GO, typename NO>
+template <typename NO>
 class SetMax
 {
   public:
@@ -33,7 +33,7 @@ class SetMax
     Kokkos::View<unsigned int *, DeviceType> _indices;
 };
 
-template <typename SC, typename LO, typename GO, typename NO>
+template <typename NO>
 class SetIndices
 {
   public:
@@ -52,7 +52,7 @@ class SetIndices
     Kokkos::View<int *, DeviceType> _indices;
 };
 
-template <typename SC, typename LO, typename GO, typename NO>
+template <typename NO>
 class SetBoundingBoxes
 {
   public:
@@ -81,8 +81,8 @@ class SetBoundingBoxes
 };
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
+template <typename NO>
+BVH<NO>::BVH( AABB const *bounding_boxes, int n )
     : _leaf_nodes( "leaf_nodes", n )
     , _internal_nodes( "internal_nodes", n - 1 )
     , _indices( "sorted_indices", n )
@@ -90,13 +90,13 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     using ExecutionSpace = typename DeviceType::execution_space;
 
     // determine the bounding box of the scene
-    TreeConstruction<SC, LO, GO, NO> tree_construction;
+    TreeConstruction<NO> tree_construction;
     tree_construction.calculateBoundingBoxOfTheScene(
         bounding_boxes, n, _internal_nodes[0].bounding_box );
 
     // calculate morton code of all objects
     Kokkos::View<unsigned int *, DeviceType> morton_indices( "morton", n );
-    Functor::SetMax<SC, LO, GO, NO> set_max_functor( morton_indices );
+    Functor::SetMax<NO> set_max_functor( morton_indices );
     Kokkos::parallel_for( "set_morton_indices",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_max_functor );
@@ -105,7 +105,7 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
                                          _internal_nodes[0].bounding_box );
 
     // sort them along the Z-order space-filling curve
-    Functor::SetIndices<SC, LO, GO, NO> set_indices_functor( _indices );
+    Functor::SetIndices<NO> set_indices_functor( _indices );
     Kokkos::parallel_for( "set_indices",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_indices_functor );
@@ -113,7 +113,7 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     tree_construction.sortObjects( morton_indices, _indices, n );
 
     // generate bounding volume hierarchy
-    Functor::SetBoundingBoxes<SC, LO, GO, NO> set_bounding_boxes_functor(
+    Functor::SetBoundingBoxes<NO> set_bounding_boxes_functor(
         _leaf_nodes, _indices, bounding_boxes );
     Kokkos::parallel_for( "set_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
@@ -129,50 +129,48 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
 
 // COMMENT: could also check that pointer is in the range [leaf_nodes,
 // leaf_nodes+n]
-template <typename SC, typename LO, typename GO, typename NO>
-bool BVH<SC, LO, GO, NO>::isLeaf( Node const *node ) const
+template <typename NO>
+bool BVH<NO>::isLeaf( Node const *node ) const
 {
     return ( node->children.first == nullptr ) &&
            ( node->children.second == nullptr );
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-int BVH<SC, LO, GO, NO>::getIndex( Node const *leaf ) const
+template <typename NO>
+int BVH<NO>::getIndex( Node const *leaf ) const
 {
     return _indices[leaf - _leaf_nodes.data()];
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-Node const *BVH<SC, LO, GO, NO>::getRoot() const
+template <typename NO>
+Node const *BVH<NO>::getRoot() const
 {
     return _internal_nodes.data();
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-int BVH<SC, LO, GO, NO>::size() const
+template <typename NO>
+int BVH<NO>::size() const
 {
     return _leaf_nodes.size();
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-AABB BVH<SC, LO, GO, NO>::bounds() const
+template <typename NO>
+AABB BVH<NO>::bounds() const
 {
     return getRoot()->bounding_box;
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-int BVH<SC, LO, GO, NO>::query(
-    Details::Nearest<Details::Point> const &predicates,
-    Kokkos::View<int *, typename NO::device_type> out ) const
+template <typename NO>
+int BVH<NO>::query( Details::Nearest<Details::Point> const &predicates,
+                    Kokkos::View<int *, typename NO::device_type> out ) const
 {
     using Tag = typename Details::Nearest<Details::Point>::Tag;
     return Details::query_dispatch( this, predicates, out, Tag{} );
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-int BVH<SC, LO, GO, NO>::query(
-    Details::Within<Details::Point> const &predicates,
-    Kokkos::View<int *, BVH::DeviceType> out ) const
+template <typename NO>
+int BVH<NO>::query( Details::Within<Details::Point> const &predicates,
+                    Kokkos::View<int *, BVH::DeviceType> out ) const
 {
     using Tag = typename Details::Within<Details::Point>::Tag;
     return Details::query_dispatch( this, predicates, out, Tag{} );
@@ -196,7 +194,6 @@ int BVH<SC, LO, GO, NO>::query(
 } // end namespace DataTransferKit
 
 // Explicit instantiation macro
-#define DTK_LINEARBVH_INSTANT( SCALAR, LO, GO, NODE )                          \
-    template class BVH<SCALAR, LO, GO, NODE>;
+#define DTK_LINEARBVH_INSTANT( NODE ) template class BVH<NODE>;
 
 #endif
