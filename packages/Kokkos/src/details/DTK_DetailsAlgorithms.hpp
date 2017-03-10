@@ -23,6 +23,17 @@ void expand( Box &box, Box const &other );
 bool overlaps( Box const &box, Box const &other );
 // calculate the centroid of a box
 void centroid( Box const &box, Point &c );
+// Expands a 10-bit integer into 30 bits
+// by inserting 2 zeros after each bit.
+unsigned int expandBits( unsigned int v );
+
+// Calculates a 30-bit Morton code for the
+// given 3D point located within the unit cube [0,1].
+unsigned int morton3D( double x, double y, double z );
+
+#define __clz( x ) __builtin_clz( x )
+int clz( uint32_t x );
+int countLeadingZeros( unsigned int k );
 
 namespace Functor
 {

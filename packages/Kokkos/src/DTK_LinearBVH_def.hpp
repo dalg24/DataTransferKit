@@ -1,8 +1,8 @@
 #ifndef DTK_LINEARBVH_DEF_HPP
 #define DTK_LINEARBVH_DEF_HPP
 
+#include <DTK_TreeConstruction.hpp>
 #include <details/DTK_DetailsAlgorithms.hpp>
-#include <details/DTK_DetailsTreeConstruction.hpp>
 #include <details/DTK_DetailsTreeTraversal.hpp>
 
 #include "DTK_ConfigDefs.hpp"
@@ -90,7 +90,8 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
     using ExecutionSpace = typename DeviceType::execution_space;
 
     // determine the bounding box of the scene
-    Details::calculateBoundingBoxOfTheScene<ExecutionSpace>(
+    TreeConstruction<SC, LO, GO, NO> tree_construction;
+    tree_construction.calculateBoundingBoxOfTheScene(
         bounding_boxes, n, _internal_nodes[0].bounding_box );
 
     // calculate morton code of all objects
@@ -100,9 +101,8 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_max_functor );
     Kokkos::fence();
-    Details::assignMortonCodes<ExecutionSpace>(
-        bounding_boxes, morton_indices.data(), n,
-        _internal_nodes[0].bounding_box );
+    tree_construction.assignMortonCodes( bounding_boxes, morton_indices, n,
+                                         _internal_nodes[0].bounding_box );
 
     // sort them along the Z-order space-filling curve
     Functor::SetIndices<SC, LO, GO, NO> set_indices_functor( _indices );
@@ -110,7 +110,7 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_indices_functor );
     Kokkos::fence();
-    Details::sortObjects( morton_indices, _indices, n );
+    tree_construction.sortObjects( morton_indices, _indices, n );
 
     // generate bounding volume hierarchy
     Functor::SetBoundingBoxes<SC, LO, GO, NO> set_bounding_boxes_functor(
@@ -119,13 +119,12 @@ BVH<SC, LO, GO, NO>::BVH( AABB const *bounding_boxes, int n )
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_bounding_boxes_functor );
     Kokkos::fence();
-    Details::generateHierarchy<ExecutionSpace>(
-        morton_indices.data(), n, _leaf_nodes.data(), _internal_nodes.data() );
+    tree_construction.generateHierarchy( morton_indices, n, _leaf_nodes,
+                                         _internal_nodes );
 
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
-    Details::calculateBoundingBoxes<ExecutionSpace>(
-        _leaf_nodes.data(), _internal_nodes.data(), n );
+    tree_construction.calculateBoundingBoxes( _leaf_nodes, _internal_nodes, n );
 }
 
 // COMMENT: could also check that pointer is in the range [leaf_nodes,

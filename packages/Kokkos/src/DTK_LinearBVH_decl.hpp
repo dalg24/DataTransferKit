@@ -3,10 +3,10 @@
 
 #include <Kokkos_ArithTraits.hpp>
 #include <Kokkos_Array.hpp>
-#include <Kokkos_Pair.hpp>
 #include <Kokkos_View.hpp>
 
 #include <DTK_AABB.hpp>
+#include <DTK_Node.hpp>
 #include <details/DTK_DetailsAlgorithms.hpp>
 #include <details/DTK_Predicate.hpp>
 
@@ -14,14 +14,6 @@
 
 namespace DataTransferKit
 {
-
-struct Node
-{
-    virtual ~Node() = default;
-    Node *parent = nullptr;
-    Kokkos::pair<Node *, Node *> children = {nullptr, nullptr};
-    AABB bounding_box;
-};
 
 // Bounding Volume Hierarchy
 template <typename SC, typename LO, typename GO, typename NO>
