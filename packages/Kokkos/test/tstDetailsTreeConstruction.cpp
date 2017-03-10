@@ -1,5 +1,5 @@
+#include <DTK_TreeConstruction.hpp>
 #include <details/DTK_DetailsAlgorithms.hpp>
-#include <details/DTK_DetailsTreeConstruction.hpp>
 
 #include <Kokkos_ArithTraits.hpp>
 #include <Teuchos_UnitTestHarness.hpp>
@@ -45,21 +45,20 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, morton_codes, SC, LO, GO, NO )
         dtk::expand( boxes[i], points[i] );
 
     dtk::Box scene;
-    using ExecutionSpace = typename NO::device_type::execution_space;
-    dtk::calculateBoundingBoxOfTheScene<ExecutionSpace>( boxes.data(), n,
-                                                         scene );
+    using DeviceType = typename NO::device_type;
+    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    tc.calculateBoundingBoxOfTheScene( boxes.data(), n, scene );
     for ( int d = 0; d < 3; ++d )
     {
         TEST_EQUALITY( scene[2 * d + 0], 0.0 );
         TEST_EQUALITY( scene[2 * d + 1], 1024.0 );
     }
 
-    std::vector<unsigned int> morton_codes(
-        n, Kokkos::ArithTraits<unsigned int>::max() );
-    dtk::assignMortonCodes<ExecutionSpace>( boxes.data(), morton_codes.data(),
-                                            n, scene );
+    Kokkos::View<unsigned int *, DeviceType> morton_codes( "morton_codes", n );
     for ( int i = 0; i < n; ++i )
-        TEST_EQUALITY( morton_codes[i], ref[i] );
+        morton_codes[i] = Kokkos::ArithTraits<unsigned int>::max();
+    tc.assignMortonCodes( boxes.data(), morton_codes, n, scene );
+    TEST_COMPARE_ARRAYS( morton_codes, ref );
 }
 
 TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, indirect_sort, SC, LO, GO, NO )
@@ -85,7 +84,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, indirect_sort, SC, LO, GO, NO )
     ids[2] = 2;
     ids[3] = 3;
     // sort morton codes and object ids
-    dtk::sortObjects( k, ids, n );
+    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    tc.sortObjects( k, ids, n );
     // check that they are sorted
     TEST_ASSERT( std::is_sorted( k.data(), k.data() + n ) );
     // check that ids are properly ordered
@@ -117,28 +117,41 @@ TEUCHOS_UNIT_TEST( DetailsBVH, number_of_leading_zero_bits )
     TEST_EQUALITY( dtk::countLeadingZeros( 4 ^ 3 ), 29 );
 }
 
-TEUCHOS_UNIT_TEST( DetailsBVH, common_prefix )
+TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, common_prefix, SC, LO, GO, NO )
 {
+    using DeviceType = typename NO::device_type;
+    int const n = 13;
     // NOTE: Morton codes below are **not** unique
-    std::vector<unsigned int> const fi = {
-        0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144,
-    };
-    int const n = fi.size();
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 0, 0 ), 32 + 32 );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 0, 1 ), 31 );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 1, 0 ), 31 );
+    Kokkos::View<unsigned int *, DeviceType> fi( "fi", n );
+    fi[0] = 0;
+    fi[1] = 1;
+    fi[2] = 1;
+    fi[3] = 2;
+    fi[4] = 3;
+    fi[5] = 5;
+    fi[6] = 8;
+    fi[7] = 13;
+    fi[8] = 21;
+    fi[9] = 34;
+    fi[10] = 55;
+    fi[11] = 89;
+    fi[12] = 144;
+
+    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 0, 0 ), 32 + 32 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 0, 1 ), 31 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 1, 0 ), 31 );
     // duplicate Morton codes
     TEST_EQUALITY( fi[1], 1 );
     TEST_EQUALITY( fi[1], fi[2] );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 1, 1 ), 64 );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 1, 2 ), 32 + 30 );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 2, 1 ), 62 );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 2, 2 ), 64 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 1, 1 ), 64 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 1, 2 ), 32 + 30 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 2, 1 ), 62 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 2, 2 ), 64 );
     // by definition \delta(i, j) = -1 when j \notin [0, n-1]
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 0, -1 ), -1 );
-    TEST_EQUALITY( n, 13 );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 12, 12 ), 64 );
-    TEST_EQUALITY( dtk::commonPrefix( fi.data(), n, 12, 13 ), -1 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 0, -1 ), -1 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 12, 12 ), 64 );
+    TEST_EQUALITY( tc.commonPrefix( fi, n, 12, 13 ), -1 );
 }
 
 TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
@@ -147,17 +160,19 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
     // This is the example from the articles by Karras.
     // See
     // https://devblogs.nvidia.com/parallelforall/thinking-parallel-part-iii-tree-construction-gpu/
-    std::vector<unsigned int> sorted_morton_codes;
-    for ( std::string const &s : {
-              "00001", "00010", "00100", "00101", "10011", "11000", "11001",
-              "11110",
-          } )
+    using DeviceType = typename NO::device_type;
+    int const n = 8;
+    Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes(
+        "sorted_morton_codes", n );
+    std::vector<std::string> s{
+        "00001", "00010", "00100", "00101", "10011", "11000", "11001", "11110",
+    };
+    for ( int i = 0; i < n; ++i )
     {
-        std::bitset<6> b( s );
+        std::bitset<6> b( s[i] );
         std::cout << b << "  " << b.to_ulong() << "\n";
-        sorted_morton_codes.push_back( b.to_ulong() );
+        sorted_morton_codes[i] = b.to_ulong();
     }
-    int const n = sorted_morton_codes.size();
 
     // reference solution for a recursive traversal from top to bottom
     // starting from root, visiting first the left child and then the right one
@@ -180,13 +195,15 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
     std::cout << "ref=" << ref.str() << "\n";
 
     // hierarchy generation
-    std::vector<DataTransferKit::Node> leaf_nodes( n );
-    std::vector<DataTransferKit::Node> internal_nodes( n - 1 );
+    Kokkos::View<DataTransferKit::Node *, DeviceType> leaf_nodes( "leaf_nodes",
+                                                                  n );
+    Kokkos::View<DataTransferKit::Node *, DeviceType> internal_nodes(
+        "internal_nodes", n - 1 );
     std::function<void( DataTransferKit::Node *, std::ostream & )>
         traverseRecursive;
     traverseRecursive = [&leaf_nodes, &internal_nodes, &traverseRecursive](
         DataTransferKit::Node *node, std::ostream &os ) {
-        if ( std::any_of( leaf_nodes.begin(), leaf_nodes.end(),
+        if ( std::any_of( leaf_nodes.data(), leaf_nodes.data() + n,
                           [node]( DataTransferKit::Node const &leaf_node ) {
                               return std::addressof( leaf_node ) == node;
                           } ) )
@@ -202,10 +219,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
         }
     };
 
-    using ExecutionSpace = typename NO::device_type::execution_space;
-    DataTransferKit::Details::generateHierarchy<ExecutionSpace>(
-        sorted_morton_codes.data(), n, leaf_nodes.data(),
-        internal_nodes.data() );
+    DataTransferKit::TreeConstruction<SC, LO, GO, NO> tc;
+    tc.generateHierarchy( sorted_morton_codes, n, leaf_nodes, internal_nodes );
 
     DataTransferKit::Node *root = internal_nodes.data();
     TEST_ASSERT( root->parent == nullptr );
@@ -225,6 +240,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( DetailsBVH, example_tree_construction, SC,
     TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, morton_codes, SCALAR,    \
                                           LO, GO, NODE )                       \
     TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, indirect_sort, SCALAR,   \
+                                          LO, GO, NODE )                       \
+    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( DetailsBVH, common_prefix, SCALAR,   \
                                           LO, GO, NODE )                       \
     TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT(                                      \
         DetailsBVH, example_tree_construction, SCALAR, LO, GO, NODE )
