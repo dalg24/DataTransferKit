@@ -45,7 +45,7 @@ class AssignMortonCodes
     Box const &_scene_bounding_box;
 };
 
-template <typename SC, typename LO, typename GO, typename NO>
+template <typename NO>
 class GenerateHierarchy
 {
   public:
@@ -69,15 +69,15 @@ class GenerateHierarchy
         // Find out which range of objects the node corresponds to.
         // (This is where the magic happens!)
 
-        auto range = TreeConstruction<SC, LO, GO, NO>::determineRange(
-            _sorted_morton_codes, _n, i );
+        auto range =
+            TreeConstruction<NO>::determineRange( _sorted_morton_codes, _n, i );
         int first = range.first;
         int last = range.second;
 
         // Determine where to split the range.
 
-        int split = TreeConstruction<SC, LO, GO, NO>::findSplit(
-            _sorted_morton_codes, first, last );
+        int split = TreeConstruction<NO>::findSplit( _sorted_morton_codes,
+                                                     first, last );
 
         // Select childA.
 
@@ -146,9 +146,9 @@ class CalculateBoundingBoxes
 };
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-void TreeConstruction<SC, LO, GO, NO>::calculateBoundingBoxOfTheScene(
-    AABB const *bounding_boxes, int n, AABB &scene_bounding_box ) const
+template <typename NO>
+void TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
+    AABB const *bounding_boxes, int n, AABB &scene_bounding_box )
 {
     Details::Functor::ExpandBoxWithBox functor( bounding_boxes );
     Kokkos::parallel_reduce( "calculate_bouding_of_the_scene",
@@ -157,11 +157,11 @@ void TreeConstruction<SC, LO, GO, NO>::calculateBoundingBoxOfTheScene(
     Kokkos::fence();
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-void TreeConstruction<SC, LO, GO, NO>::assignMortonCodes(
+template <typename NO>
+void TreeConstruction<NO>::assignMortonCodes(
     AABB const *bounding_boxes,
     Kokkos::View<unsigned int *, DeviceType> morton_codes, int n,
-    AABB const &scene_bounding_box ) const
+    AABB const &scene_bounding_box )
 {
     Functor::AssignMortonCodes<DeviceType> functor(
         bounding_boxes, morton_codes, scene_bounding_box );
@@ -171,10 +171,10 @@ void TreeConstruction<SC, LO, GO, NO>::assignMortonCodes(
     Kokkos::fence();
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-void TreeConstruction<SC, LO, GO, NO>::sortObjects(
+template <typename NO>
+void TreeConstruction<NO>::sortObjects(
     Kokkos::View<unsigned int *, DeviceType> morton_codes,
-    Kokkos::View<int *, DeviceType> object_ids, int n ) const
+    Kokkos::View<int *, DeviceType> object_ids, int n )
 {
     using ExecutionSpace = typename DeviceType::execution_space;
 
@@ -197,14 +197,14 @@ void TreeConstruction<SC, LO, GO, NO>::sortObjects(
     bin_sort.sort( object_ids );
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-Node *TreeConstruction<SC, LO, GO, NO>::generateHierarchy(
+template <typename NO>
+Node *TreeConstruction<NO>::generateHierarchy(
     Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n,
     Kokkos::View<Node *, DeviceType> leaf_nodes,
-    Kokkos::View<Node *, DeviceType> internal_nodes ) const
+    Kokkos::View<Node *, DeviceType> internal_nodes )
 {
-    Functor::GenerateHierarchy<SC, LO, GO, NO> functor(
-        sorted_morton_codes, leaf_nodes, internal_nodes, n );
+    Functor::GenerateHierarchy<NO> functor( sorted_morton_codes, leaf_nodes,
+                                            internal_nodes, n );
     Kokkos::parallel_for( "generate_hierarchy",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n - 1 ),
                           functor );
@@ -214,10 +214,10 @@ Node *TreeConstruction<SC, LO, GO, NO>::generateHierarchy(
     return &( internal_nodes.data()[0] );
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-void TreeConstruction<SC, LO, GO, NO>::calculateBoundingBoxes(
+template <typename NO>
+void TreeConstruction<NO>::calculateBoundingBoxes(
     Kokkos::View<Node *, DeviceType> leaf_nodes,
-    Kokkos::View<Node *, DeviceType> internal_nodes, int n ) const
+    Kokkos::View<Node *, DeviceType> internal_nodes, int n )
 {
     // possibly use Kokkos::atomic_fetch_add() here
     std::vector<std::atomic_flag> atomic_flags( n - 1 );
@@ -237,8 +237,8 @@ void TreeConstruction<SC, LO, GO, NO>::calculateBoundingBoxes(
     Kokkos::fence();
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-int TreeConstruction<SC, LO, GO, NO>::commonPrefix(
+template <typename NO>
+int TreeConstruction<NO>::commonPrefix(
     Kokkos::View<unsigned int *, DeviceType> k, int n, int i, int j )
 {
     if ( j < 0 || j > n - 1 )
@@ -254,8 +254,8 @@ int TreeConstruction<SC, LO, GO, NO>::commonPrefix(
     return Details::countLeadingZeros( k[i] ^ k[j] );
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-int TreeConstruction<SC, LO, GO, NO>::findSplit(
+template <typename NO>
+int TreeConstruction<NO>::findSplit(
     Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int first,
     int last )
 {
@@ -296,8 +296,8 @@ int TreeConstruction<SC, LO, GO, NO>::findSplit(
     return split;
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-Kokkos::pair<int, int> TreeConstruction<SC, LO, GO, NO>::determineRange(
+template <typename NO>
+Kokkos::pair<int, int> TreeConstruction<NO>::determineRange(
     Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n, int i )
 {
     using std::min;
@@ -332,7 +332,7 @@ Kokkos::pair<int, int> TreeConstruction<SC, LO, GO, NO>::determineRange(
 }
 
 // Explicit instantiation macro
-#define DTK_TREECONSTRUCTION_INSTANT( SCALAR, LO, GO, NODE )                   \
-    template struct TreeConstruction<SCALAR, LO, GO, NODE>;
+#define DTK_TREECONSTRUCTION_INSTANT( NODE )                                   \
+    template struct TreeConstruction<NODE>;
 
 #endif
