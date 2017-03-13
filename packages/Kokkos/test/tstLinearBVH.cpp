@@ -42,7 +42,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
         for ( int j = 0; j < ny; ++j )
             for ( int k = 0; k < nz; ++k )
             {
-                bounding_boxes[i + j * nx + k * ( nx * ny )]._minmax = {
+                bounding_boxes[i + j * nx + k * ( nx * ny )] = {
                     i * Lx / ( nx - 1 ) - eps, i * Lx / ( nx - 1 ) + eps,
                     j * Ly / ( ny - 1 ) - eps, j * Ly / ( ny - 1 ) + eps,
                     k * Lz / ( nz - 1 ) - eps, k * Lz / ( nz - 1 ) + eps,
@@ -77,7 +77,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
             {
                 // bounding box around nodes of the structured grid will overlap
                 // with neighboring nodes
-                bounding_boxes[ind( i, j, k )]._minmax = {
+                bounding_boxes[ind( i, j, k )] = {
                     ( i - 1 ) * Lx / ( nx - 1 ), ( i + 1 ) * Lx / ( nx - 1 ),
                     ( j - 1 ) * Ly / ( ny - 1 ), ( j + 1 ) * Ly / ( ny - 1 ),
                     ( k - 1 ) * Lz / ( nz - 1 ), ( k + 1 ) * Lz / ( nz - 1 ),
@@ -169,7 +169,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
         double y = distribution_y( generator );
         double z = distribution_z( generator );
         DataTransferKit::AABB aabb;
-        aabb._minmax = {
+        aabb = {
             x - 0.5 * Lx / ( nx - 1 ), x + 0.5 * Lx / ( nx - 1 ),
             y - 0.5 * Ly / ( ny - 1 ), y + 0.5 * Ly / ( ny - 1 ),
             z - 0.5 * Lz / ( nz - 1 ), z + 0.5 * Lz / ( nz - 1 ),
@@ -278,7 +278,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         double x = std::get<0>( point );
         double y = std::get<1>( point );
         double z = std::get<2>( point );
-        bounding_boxes[i]._minmax = {
+        bounding_boxes[i] = {
             x, x, y, y, z, z,
         };
     }
