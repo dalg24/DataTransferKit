@@ -24,6 +24,7 @@ class AssignMortonCodes
     {
     }
 
+    KOKKOS_INLINE_FUNCTION
     void operator()( int const i ) const
     {
         Details::Point xyz;
@@ -63,6 +64,7 @@ class GenerateHierarchy
 
     // from "Thinking Parallel, Part III: Tree Construction on the GPU" by
     // Karras
+    KOKKOS_INLINE_FUNCTION
     void operator()( int const i ) const
     {
         // Construct internal nodes.
@@ -123,6 +125,7 @@ class CalculateBoundingBoxes
     {
     }
 
+    KOKKOS_INLINE_FUNCTION
     void operator()( int const i ) const
     {
         Node *node = _leaf_nodes[i].parent;
