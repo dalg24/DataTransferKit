@@ -19,32 +19,31 @@ struct TreeConstruction
 
     // COMMENT: most of these could/should be protected function in BVH to avoid
     // passing all this data around
-    static void calculateBoundingBoxOfTheScene( AABB const *bounding_boxes,
-                                                int n,
-                                                AABB &scene_bounding_box );
+    static void calculateBoundingBoxOfTheScene(
+        Kokkos::View<AABB const *, DeviceType> bounding_boxes,
+        AABB &scene_bounding_box );
 
     // to assign the Morton code for a given object, we use the centroid point
     // of
     // its bounding box, and express it relative to the bounding box of the
     // scene.
     static void
-    assignMortonCodes( AABB const *bounding_boxes,
+    assignMortonCodes( Kokkos::View<AABB const *, DeviceType> bounding_boxes,
                        Kokkos::View<unsigned int *, DeviceType> morton_codes,
-                       int n, AABB const &scene_bounding_box );
+                       AABB const &scene_bounding_box );
 
     static void
     sortObjects( Kokkos::View<unsigned int *, DeviceType> morton_codes,
-                 Kokkos::View<int *, DeviceType> object_ids, int n );
+                 Kokkos::View<int *, DeviceType> object_ids );
 
     static Node *generateHierarchy(
-        Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n,
+        Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes,
         Kokkos::View<Node *, DeviceType> leaf_nodes,
         Kokkos::View<Node *, DeviceType> internal_nodes );
 
     static void
     calculateBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                            Kokkos::View<Node *, DeviceType> internal_nodes,
-                            int n );
+                            Kokkos::View<Node *, DeviceType> internal_nodes );
 
     static int commonPrefix( Kokkos::View<unsigned int *, DeviceType> k, int n,
                              int i, int j );

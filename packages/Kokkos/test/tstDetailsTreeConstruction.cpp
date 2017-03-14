@@ -40,14 +40,14 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, morton_codes, NO )
         ref[i] = fun( anchors[i] );
     // using points rather than boxes for convenience here but still have to
     // build the axis-aligned bounding boxes around them
-    std::vector<dtk::Box> boxes( n );
+    using DeviceType = typename NO::device_type;
+    Kokkos::View<dtk::Box *, DeviceType> boxes( "boxes", n );
     for ( int i = 0; i < n; ++i )
         dtk::expand( boxes[i], points[i] );
 
     dtk::Box scene;
-    using DeviceType = typename NO::device_type;
     DataTransferKit::TreeConstruction<NO> tc;
-    tc.calculateBoundingBoxOfTheScene( boxes.data(), n, scene );
+    tc.calculateBoundingBoxOfTheScene( boxes, scene );
     for ( int d = 0; d < 3; ++d )
     {
         TEST_EQUALITY( scene[2 * d + 0], 0.0 );
@@ -57,7 +57,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, morton_codes, NO )
     Kokkos::View<unsigned int *, DeviceType> morton_codes( "morton_codes", n );
     for ( int i = 0; i < n; ++i )
         morton_codes[i] = Kokkos::ArithTraits<unsigned int>::max();
-    tc.assignMortonCodes( boxes.data(), morton_codes, n, scene );
+    tc.assignMortonCodes( boxes, morton_codes, scene );
     TEST_COMPARE_ARRAYS( morton_codes, ref );
 }
 
@@ -85,7 +85,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, indirect_sort, NO )
     ids[3] = 3;
     // sort morton codes and object ids
     DataTransferKit::TreeConstruction<NO> tc;
-    tc.sortObjects( k, ids, n );
+    tc.sortObjects( k, ids );
     // check that they are sorted
     TEST_ASSERT( std::is_sorted( k.data(), k.data() + n ) );
     // check that ids are properly ordered
@@ -219,7 +219,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, example_tree_construction, NO )
     };
 
     DataTransferKit::TreeConstruction<NO> tc;
-    tc.generateHierarchy( sorted_morton_codes, n, leaf_nodes, internal_nodes );
+    tc.generateHierarchy( sorted_morton_codes, leaf_nodes, internal_nodes );
 
     DataTransferKit::Node *root = internal_nodes.data();
     TEST_ASSERT( root->parent == nullptr );
