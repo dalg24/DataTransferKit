@@ -15,7 +15,7 @@ template <typename DeviceType>
 class AssignMortonCodes
 {
   public:
-    AssignMortonCodes( Box const *bounding_boxes,
+    AssignMortonCodes( Kokkos::View<Box const *, DeviceType> bounding_boxes,
                        Kokkos::View<unsigned int *, DeviceType> morton_codes,
                        Box const &scene_bounding_box )
         : _bounding_boxes( bounding_boxes )
@@ -41,7 +41,7 @@ class AssignMortonCodes
     }
 
   private:
-    Box const *_bounding_boxes;
+    Kokkos::View<Box const *, DeviceType> _bounding_boxes;
     Kokkos::View<unsigned int *, DeviceType> _morton_codes;
     Box const &_scene_bounding_box;
 };
@@ -151,9 +151,11 @@ class CalculateBoundingBoxes
 
 template <typename NO>
 void TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
-    AABB const *bounding_boxes, int n, AABB &scene_bounding_box )
+    Kokkos::View<AABB const *, DeviceType> bounding_boxes,
+    AABB &scene_bounding_box )
 {
-    Details::Functor::ExpandBoxWithBox functor( bounding_boxes );
+    int const n = bounding_boxes.extent( 0 );
+    Details::Functor::ExpandBoxWithBox<DeviceType> functor( bounding_boxes );
     Kokkos::parallel_reduce( "calculate_bouding_of_the_scene",
                              Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                              functor, scene_bounding_box );
@@ -162,10 +164,11 @@ void TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
 
 template <typename NO>
 void TreeConstruction<NO>::assignMortonCodes(
-    AABB const *bounding_boxes,
-    Kokkos::View<unsigned int *, DeviceType> morton_codes, int n,
+    Kokkos::View<AABB const *, DeviceType> bounding_boxes,
+    Kokkos::View<unsigned int *, DeviceType> morton_codes,
     AABB const &scene_bounding_box )
 {
+    int const n = bounding_boxes.extent( 0 );
     Functor::AssignMortonCodes<DeviceType> functor(
         bounding_boxes, morton_codes, scene_bounding_box );
     Kokkos::parallel_for( "assign_morton_codes",
@@ -177,9 +180,10 @@ void TreeConstruction<NO>::assignMortonCodes(
 template <typename NO>
 void TreeConstruction<NO>::sortObjects(
     Kokkos::View<unsigned int *, DeviceType> morton_codes,
-    Kokkos::View<int *, DeviceType> object_ids, int n )
+    Kokkos::View<int *, DeviceType> object_ids )
 {
     using ExecutionSpace = typename DeviceType::execution_space;
+    int const n = morton_codes.extent( 0 );
 
     typedef Kokkos::BinOp1D<Kokkos::View<unsigned int *, DeviceType>> CompType;
 
@@ -202,10 +206,11 @@ void TreeConstruction<NO>::sortObjects(
 
 template <typename NO>
 Node *TreeConstruction<NO>::generateHierarchy(
-    Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n,
+    Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes,
     Kokkos::View<Node *, DeviceType> leaf_nodes,
     Kokkos::View<Node *, DeviceType> internal_nodes )
 {
+    int const n = sorted_morton_codes.extent( 0 );
     Functor::GenerateHierarchy<NO> functor( sorted_morton_codes, leaf_nodes,
                                             internal_nodes, n );
     Kokkos::parallel_for( "generate_hierarchy",
@@ -220,8 +225,9 @@ Node *TreeConstruction<NO>::generateHierarchy(
 template <typename NO>
 void TreeConstruction<NO>::calculateBoundingBoxes(
     Kokkos::View<Node *, DeviceType> leaf_nodes,
-    Kokkos::View<Node *, DeviceType> internal_nodes, int n )
+    Kokkos::View<Node *, DeviceType> internal_nodes )
 {
+    int const n = leaf_nodes.extent( 0 );
     // possibly use Kokkos::atomic_fetch_add() here
     std::vector<std::atomic_flag> atomic_flags( n - 1 );
     // flags are in an unspecified state on construction

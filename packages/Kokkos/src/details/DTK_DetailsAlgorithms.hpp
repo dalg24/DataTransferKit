@@ -39,10 +39,11 @@ namespace Functor
 {
 using Box = AABB;
 
+template <typename DeviceType>
 class ExpandBoxWithBox
 {
   public:
-    ExpandBoxWithBox( Box const *bounding_boxes )
+    ExpandBoxWithBox( Kokkos::View<Box const *, DeviceType> bounding_boxes )
         : _greatest( Kokkos::ArithTraits<double>::max() )
         , _lowest( -_greatest )
         , _bounding_boxes( bounding_boxes )
@@ -92,7 +93,7 @@ class ExpandBoxWithBox
   private:
     double const _greatest;
     double const _lowest;
-    Box const *_bounding_boxes;
+    Kokkos::View<Box const *, DeviceType> _bounding_boxes;
 };
 }
 

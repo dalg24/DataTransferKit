@@ -22,7 +22,7 @@ class BVH
   public:
     using DeviceType = typename NO::device_type;
 
-    BVH( AABB const *bounding_boxes, int n );
+    BVH( Kokkos::View<AABB const *, DeviceType> bounding_boxes );
 
     int size() const;
 
