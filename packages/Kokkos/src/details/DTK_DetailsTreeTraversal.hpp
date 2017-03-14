@@ -5,7 +5,6 @@
 #include <details/DTK_Predicate.hpp>
 
 #include <DTK_LinearBVH.hpp> // BVH
-#include <DTK_LinearBVH_decl.hpp> // BVH
 
 #include <functional>
 #include <list>
@@ -27,28 +26,27 @@ struct CollisionList
     std::vector<std::pair<int, int>> _ij;
 };
 
-template <typename SC, typename LO, typename GO, typename NO>
+template <typename NO>
 void traverseRecursive( CollisionList &list,
-                        ::DataTransferKit::BVH<SC, LO, GO, NO> const &bvh,
+                        ::DataTransferKit::BVH<NO> const &bvh,
                         AABB const &queryAABB, int queryObjectIdx,
                         Node const *node );
 
-template <typename SC, typename LO, typename GO, typename NO>
-void traverseIterative( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
+template <typename NO>
+void traverseIterative( CollisionList &list, BVH<NO> const &bvh,
                         AABB const &queryAABB, int queryObjectIdx );
 // TODO: get rid of this guy
 bool checkOverlap( AABB const &a, AABB const &b );
 
 // query k nearest neighbours
-template <typename SC, typename LO, typename GO, typename NO>
+template <typename NO>
 std::list<std::pair<int, double>>
-nearest( BVH<SC, LO, GO, NO> const &bvh, Point const &query_point, int k = 1 );
+nearest( BVH<NO> const &bvh, Point const &query_point, int k = 1 );
 
 // radius search
-template <typename SC, typename LO, typename GO, typename NO>
-std::list<std::pair<int, double>> within( BVH<SC, LO, GO, NO> const &bvh,
-                                          Point const &query_point,
-                                          double radius );
+template <typename NO>
+std::list<std::pair<int, double>>
+within( BVH<NO> const &bvh, Point const &query_point, double radius );
 
 // priority queue helper for nearest neighbor search
 using Value = std::pair<Node const *, double>;
@@ -97,9 +95,8 @@ struct SortedList
 };
 using Stack = std::stack<Value, std::vector<Value>>;
 
-template <typename SC, typename LO, typename GO, typename NO,
-          typename Predicate>
-int query_dispatch( BVH<SC, LO, GO, NO> const *bvh, Predicate const &pred,
+template <typename NO, typename Predicate>
+int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
                     Kokkos::View<int *, typename NO::device_type> out,
                     NearestPredicateTag )
 {
@@ -116,9 +113,8 @@ int query_dispatch( BVH<SC, LO, GO, NO> const *bvh, Predicate const &pred,
     return n;
 }
 
-template <typename SC, typename LO, typename GO, typename NO,
-          typename Predicate>
-int query_dispatch( BVH<SC, LO, GO, NO> const *bvh, Predicate const &pred,
+template <typename NO, typename Predicate>
+int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
                     Kokkos::View<int *, typename NO::device_type> out,
                     SpatialPredicateTag )
 {
@@ -133,8 +129,8 @@ int query_dispatch( BVH<SC, LO, GO, NO> const *bvh, Predicate const &pred,
     return n;
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-void traverseRecursive( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
+template <typename NO>
+void traverseRecursive( CollisionList &list, BVH<NO> const &bvh,
                         const AABB &queryAABB, int queryObjectIdx,
                         Node const *node )
 {
@@ -156,8 +152,8 @@ void traverseRecursive( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
     }
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-void traverseIterative( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
+template <typename NO>
+void traverseIterative( CollisionList &list, BVH<NO> const &bvh,
                         AABB const &queryAABB, int queryObjectIdx )
 {
     // Allocate traversal stack from thread-local memory,
@@ -198,10 +194,9 @@ void traverseIterative( CollisionList &list, BVH<SC, LO, GO, NO> const &bvh,
     } while ( node != NULL );
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-std::list<std::pair<int, double>> within( BVH<SC, LO, GO, NO> const &bvh,
-                                          Point const &query_point,
-                                          double radius )
+template <typename NO>
+std::list<std::pair<int, double>>
+within( BVH<NO> const &bvh, Point const &query_point, double radius )
 {
     std::list<std::pair<int, double>> ret;
 
@@ -237,8 +232,8 @@ std::list<std::pair<int, double>> within( BVH<SC, LO, GO, NO> const &bvh,
     return ret;
 }
 
-template <typename SC, typename LO, typename GO, typename NO>
-std::list<std::pair<int, double>> nearest( BVH<SC, LO, GO, NO> const &bvh,
+template <typename NO>
+std::list<std::pair<int, double>> nearest( BVH<NO> const &bvh,
                                            Point const &query_point, int k )
 {
     SortedList candidate_list( k );

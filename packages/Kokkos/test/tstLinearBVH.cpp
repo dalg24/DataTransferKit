@@ -11,13 +11,15 @@
 #include <iostream>
 #include <random>
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, tag_dispatching, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, tag_dispatching, NO )
 {
-    std::vector<DataTransferKit::AABB> boxes = {{{0, 0, 0, 0, 0, 0}},
-                                                {{1, 1, 1, 1, 1, 1}}};
-    DataTransferKit::BVH<SC, LO, GO, NO> bvh( boxes.data(), boxes.size() );
-    using DeviceType =
-        typename DataTransferKit::BVH<SC, LO, GO, NO>::DeviceType;
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    int const n = 2;
+    std::vector<DataTransferKit::AABB> boxes_vector = {{{0, 0, 0, 0, 0, 0}},
+                                                       {{1, 1, 1, 1, 1, 1}}};
+    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
+        boxes( boxes_vector.data(), n );
+    DataTransferKit::BVH<NO> bvh( boxes );
     Kokkos::View<int *, DeviceType> results;
     bvh.query( DataTransferKit::Details::nearest(
                    DataTransferKit::Details::Point{0, 0, 0}, 1 ),
@@ -27,23 +29,24 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, tag_dispatching, SC, LO, GO, NO )
                results );
 }
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, structured_grid, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
 {
     double Lx = 100.0;
     double Ly = 100.0;
     double Lz = 100.0;
-    int nx = 11;
-    int ny = 11;
-    int nz = 11;
+    int constexpr nx = 11;
+    int constexpr ny = 11;
+    int constexpr nz = 11;
+    int constexpr n = nx * ny * nz;
     std::function<int( int, int, int )> ind = [nx, ny, nz](
         int i, int j, int k ) { return i + j * nx + k * ( nx * ny ); };
     double eps = 1.0e-6;
-    std::vector<DataTransferKit::AABB> bounding_boxes( nx * ny * nz );
+    std::vector<DataTransferKit::AABB> bounding_boxes_vector( n );
     for ( int i = 0; i < nx; ++i )
         for ( int j = 0; j < ny; ++j )
             for ( int k = 0; k < nz; ++k )
             {
-                bounding_boxes[i + j * nx + k * ( nx * ny )]._minmax = {
+                bounding_boxes_vector[i + j * nx + k * ( nx * ny )] = {
                     i * Lx / ( nx - 1 ) - eps, i * Lx / ( nx - 1 ) + eps,
                     j * Ly / ( ny - 1 ) - eps, j * Ly / ( ny - 1 ) + eps,
                     k * Lz / ( nz - 1 ) - eps, k * Lz / ( nz - 1 ) + eps,
@@ -51,21 +54,22 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, structured_grid, SC, LO, GO, NO )
             }
 
     DataTransferKit::Details::CollisionList collision_list;
-    DataTransferKit::BVH<SC, LO, GO, NO> bvh( bounding_boxes.data(),
-                                              nx * ny * nz );
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
+        bounding_boxes( bounding_boxes_vector.data(), n );
+    DataTransferKit::BVH<NO> bvh( bounding_boxes );
 
     // (i) use same objects for the queries than the objects we constructed the
     // BVH
-    for ( int i = 0; i < nx * ny * nz; ++i )
+    for ( int i = 0; i < n; ++i )
         //    DataTransferKit::traverseRecursive(collision_list, bvh,
         //    bvh._bounding_boxes[i], i, bvh.getRoot());
         DataTransferKit::Details::traverseIterative( collision_list, bvh,
                                                      bounding_boxes[i], i );
 
     // we expect the collision list to be diag(0, 1, ..., nx*ny*nz-1)
-    TEST_EQUALITY( static_cast<int>( collision_list._ij.size() ),
-                   nx * ny * nz );
-    for ( int i = 0; i < nx * ny * nz; ++i )
+    TEST_EQUALITY( static_cast<int>( collision_list._ij.size() ), n );
+    for ( int i = 0; i < n; ++i )
     {
         TEST_EQUALITY( collision_list._ij[i].first, i )
         TEST_EQUALITY( collision_list._ij[i].first,
@@ -79,7 +83,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, structured_grid, SC, LO, GO, NO )
             {
                 // bounding box around nodes of the structured grid will overlap
                 // with neighboring nodes
-                bounding_boxes[ind( i, j, k )]._minmax = {
+                bounding_boxes[ind( i, j, k )] = {
                     ( i - 1 ) * Lx / ( nx - 1 ), ( i + 1 ) * Lx / ( nx - 1 ),
                     ( j - 1 ) * Ly / ( ny - 1 ), ( j + 1 ) * Ly / ( ny - 1 ),
                     ( k - 1 ) * Lz / ( nz - 1 ), ( k + 1 ) * Lz / ( nz - 1 ),
@@ -163,15 +167,15 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, structured_grid, SC, LO, GO, NO )
     std::uniform_real_distribution<double> distribution_y( 0.0, Ly );
     std::uniform_real_distribution<double> distribution_z( 0.0, Lz );
 
-    int n = 1000;
+    int nn = 1000;
     int count = 0; // drop point if mapped into [0.5-eps], 0.5+eps]^3
-    for ( int l = 0; l < n; ++l )
+    for ( int l = 0; l < nn; ++l )
     {
         double x = distribution_x( generator );
         double y = distribution_y( generator );
         double z = distribution_z( generator );
         DataTransferKit::AABB aabb;
-        aabb._minmax = {
+        aabb = {
             x - 0.5 * Lx / ( nx - 1 ), x + 0.5 * Lx / ( nx - 1 ),
             y - 0.5 * Ly / ( ny - 1 ), y + 0.5 * Ly / ( ny - 1 ),
             z - 0.5 * Lz / ( nz - 1 ), z + 0.5 * Lz / ( nz - 1 ),
@@ -244,7 +248,7 @@ std::vector<std::array<double, 3>> make_random_cloud( double Lx, double Ly,
     return cloud;
 }
 
-TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, rtree, SC, LO, GO, NO )
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
 {
     namespace bg = boost::geometry;
     namespace bgi = boost::geometry::index;
@@ -273,18 +277,21 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, rtree, SC, LO, GO, NO )
     }
 
     // build bounding volume hierarchy
-    std::vector<DataTransferKit::AABB> bounding_boxes( n );
+    std::vector<DataTransferKit::AABB> bounding_boxes_vector( n );
     for ( int i = 0; i < n; ++i )
     {
         auto const &point = cloud[i];
         double x = std::get<0>( point );
         double y = std::get<1>( point );
         double z = std::get<2>( point );
-        bounding_boxes[i]._minmax = {
+        bounding_boxes_vector[i] = {
             x, x, y, y, z, z,
         };
     }
-    DataTransferKit::BVH<SC, LO, GO, NO> bvh( bounding_boxes.data(), n );
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
+        bounding_boxes( bounding_boxes_vector.data(), n );
+    DataTransferKit::BVH<NO> bvh( bounding_boxes );
 
     // random points for radius search and kNN queries
     // compare our solution against Boost R-tree
@@ -376,16 +383,13 @@ TEUCHOS_UNIT_TEST_TEMPLATE_4_DECL( LinearBVH, rtree, SC, LO, GO, NO )
 #include "DataTransferKitKokkos_ETIHelperMacros.h"
 
 // Create the test group
-#define UNIT_TEST_GROUP( SCALAR, LO, GO, NODE )                                \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( LinearBVH, tag_dispatching, SCALAR,  \
-                                          LO, GO, NODE )                       \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( LinearBVH, structured_grid, SCALAR,  \
-                                          LO, GO, NODE )                       \
-    TEUCHOS_UNIT_TEST_TEMPLATE_4_INSTANT( LinearBVH, rtree, SCALAR, LO, GO,    \
-                                          NODE )
+#define UNIT_TEST_GROUP( NODE )                                                \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( LinearBVH, tag_dispatching, NODE )   \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( LinearBVH, structured_grid, NODE )   \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( LinearBVH, rtree, NODE )
 
 // Demangle the types
 DTK_ETI_MANGLING_TYPEDEFS()
 
 // Instantiate the tests
-DTK_INSTANTIATE_SLGN( UNIT_TEST_GROUP )
+DTK_INSTANTIATE_N( UNIT_TEST_GROUP )
