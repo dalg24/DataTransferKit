@@ -15,11 +15,10 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, tag_dispatching, NO )
 {
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
     int const n = 2;
-    Kokkos::View<DataTransferKit::AABB *, DeviceType> boxes( "boxes", n );
     std::vector<DataTransferKit::AABB> boxes_vector = {{{0, 0, 0, 0, 0, 0}},
                                                        {{1, 1, 1, 1, 1, 1}}};
-    for ( int i = 0; i < n; ++i )
-        boxes[i] = boxes_vector[i];
+    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
+        boxes( boxes_vector.data(), n );
     DataTransferKit::BVH<NO> bvh( boxes );
     Kokkos::View<int *, DeviceType> results;
     bvh.query( DataTransferKit::Details::nearest(
@@ -56,10 +55,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
 
     DataTransferKit::Details::CollisionList collision_list;
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
-    Kokkos::View<DataTransferKit::AABB *, DeviceType> bounding_boxes(
-        "bounding_boxes", n );
-    for ( int i = 0; i < n; ++i )
-        bounding_boxes[i] = bounding_boxes_vector[i];
+    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
+        bounding_boxes( bounding_boxes_vector.data(), n );
     DataTransferKit::BVH<NO> bvh( bounding_boxes );
 
     // (i) use same objects for the queries than the objects we constructed the
@@ -292,10 +289,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         };
     }
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
-    Kokkos::View<DataTransferKit::AABB *, DeviceType> bounding_boxes(
-        "bounding_boxes", n );
-    for ( int i = 0; i < n; ++i )
-        bounding_boxes[i] = bounding_boxes_vector[i];
+    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
+        bounding_boxes( bounding_boxes_vector.data(), n );
     DataTransferKit::BVH<NO> bvh( bounding_boxes );
 
     // random points for radius search and kNN queries
