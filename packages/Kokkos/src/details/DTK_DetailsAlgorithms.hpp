@@ -79,11 +79,6 @@ class ExpandBoxWithBox
         {
             // We need to access the underlying element directly because
             // operator[] is not volatile
-            // dst._minmax.m_elem[2 * d] = KokkosHelpers::min(
-            //     src._minmax.m_elem[2 * d], dst._minmax.m_elem[2 * d] );
-            // dst._minmax.m_elem[2 * d + 1] = KokkosHelpers::max(
-            //     src._minmax.m_elem[2 * d + 1], dst._minmax.m_elem[2 * d + 1]
-            //     );
             dst[2 * d] = KokkosHelpers::min( src[2 * d], dst[2 * d] );
             dst[2 * d + 1] =
                 KokkosHelpers::max( src[2 * d + 1], dst[2 * d + 1] );
