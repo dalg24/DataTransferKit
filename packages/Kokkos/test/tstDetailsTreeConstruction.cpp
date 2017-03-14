@@ -70,19 +70,15 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, indirect_sort, NO )
     // solution
     //
     using DeviceType = typename NO::device_type;
-    int constexpr n = 4;
-    Kokkos::View<unsigned int *, DeviceType> k( "k", n );
-    k[0] = 2;
-    k[1] = 1;
-    k[2] = 4;
-    k[3] = 3;
+    std::vector<unsigned int> k_vector = {{2, 1, 4, 3}};
+    unsigned int const n = k_vector.size();
+    Kokkos::View<unsigned int *, DeviceType, Kokkos::MemoryUnmanaged> k(
+        k_vector.data(), n );
     std::vector<int> ref = {1, 0, 3, 2};
     // distribute ids to unsorted objects
-    Kokkos::View<int *, DeviceType> ids( "ids", n );
-    ids[0] = 0;
-    ids[1] = 1;
-    ids[2] = 2;
-    ids[3] = 3;
+    std::vector<int> ids_vector = {{0, 1, 2, 3}};
+    Kokkos::View<int *, DeviceType, Kokkos::MemoryUnmanaged> ids(
+        ids_vector.data(), n );
     // sort morton codes and object ids
     DataTransferKit::TreeConstruction<NO> tc;
     tc.sortObjects( k, ids );
@@ -120,22 +116,12 @@ TEUCHOS_UNIT_TEST( DetailsBVH, number_of_leading_zero_bits )
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, common_prefix, NO )
 {
     using DeviceType = typename NO::device_type;
-    int const n = 13;
+    std::vector<unsigned int> fi_vector = {
+        {0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144}};
+    int const n = fi_vector.size();
     // NOTE: Morton codes below are **not** unique
-    Kokkos::View<unsigned int *, DeviceType> fi( "fi", n );
-    fi[0] = 0;
-    fi[1] = 1;
-    fi[2] = 1;
-    fi[3] = 2;
-    fi[4] = 3;
-    fi[5] = 5;
-    fi[6] = 8;
-    fi[7] = 13;
-    fi[8] = 21;
-    fi[9] = 34;
-    fi[10] = 55;
-    fi[11] = 89;
-    fi[12] = 144;
+    Kokkos::View<unsigned int *, DeviceType, Kokkos::MemoryUnmanaged> fi(
+        fi_vector.data(), n );
 
     DataTransferKit::TreeConstruction<NO> tc;
     TEST_EQUALITY( tc.commonPrefix( fi, n, 0, 0 ), 32 + 32 );
