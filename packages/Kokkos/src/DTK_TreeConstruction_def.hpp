@@ -8,6 +8,8 @@
 
 namespace DataTransferKit
 {
+namespace Details
+{
 namespace Functor
 {
 using Box = AABB;
@@ -339,9 +341,13 @@ Kokkos::pair<int, int> TreeConstruction<NO>::determineRange(
     return {min( i, j ), max( i, j )};
 }
 }
+}
 
 // Explicit instantiation macro
 #define DTK_TREECONSTRUCTION_INSTANT( NODE )                                   \
-    template struct TreeConstruction<NODE>;
+    namespace Details                                                          \
+    {                                                                          \
+    template struct TreeConstruction<NODE>;                                    \
+    }
 
 #endif
