@@ -10,6 +10,8 @@
 
 namespace DataTransferKit
 {
+namespace Details
+{
 template <typename NO>
 struct TreeConstruction
 {
@@ -60,6 +62,7 @@ struct TreeConstruction
         Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n,
         int i );
 };
+}
 }
 
 #endif
