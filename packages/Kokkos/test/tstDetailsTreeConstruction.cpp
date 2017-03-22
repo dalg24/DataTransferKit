@@ -46,7 +46,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, morton_codes, NO )
         dtk::expand( boxes[i], points[i] );
 
     dtk::Box scene;
-    DataTransferKit::TreeConstruction<NO> tc;
+    dtk::TreeConstruction<NO> tc;
     tc.calculateBoundingBoxOfTheScene( boxes, scene );
     for ( int d = 0; d < 3; ++d )
     {
@@ -80,7 +80,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, indirect_sort, NO )
     Kokkos::View<int *, DeviceType, Kokkos::MemoryUnmanaged> ids(
         ids_vector.data(), n );
     // sort morton codes and object ids
-    DataTransferKit::TreeConstruction<NO> tc;
+    dtk::TreeConstruction<NO> tc;
     tc.sortObjects( k, ids );
     // check that they are sorted
     TEST_ASSERT( std::is_sorted( k.data(), k.data() + n ) );
@@ -123,7 +123,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, common_prefix, NO )
     Kokkos::View<unsigned int *, DeviceType, Kokkos::MemoryUnmanaged> fi(
         fi_vector.data(), n );
 
-    DataTransferKit::TreeConstruction<NO> tc;
+    dtk::TreeConstruction<NO> tc;
     TEST_EQUALITY( tc.commonPrefix( fi, n, 0, 0 ), 32 + 32 );
     TEST_EQUALITY( tc.commonPrefix( fi, n, 0, 1 ), 31 );
     TEST_EQUALITY( tc.commonPrefix( fi, n, 1, 0 ), 31 );
@@ -204,7 +204,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, example_tree_construction, NO )
         }
     };
 
-    DataTransferKit::TreeConstruction<NO> tc;
+    dtk::TreeConstruction<NO> tc;
     tc.generateHierarchy( sorted_morton_codes, leaf_nodes, internal_nodes );
 
     DataTransferKit::Node *root = internal_nodes.data();

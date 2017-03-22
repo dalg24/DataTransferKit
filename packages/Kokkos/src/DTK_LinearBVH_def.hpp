@@ -90,7 +90,7 @@ BVH<NO>::BVH( Kokkos::View<AABB const *, DeviceType> bounding_boxes )
     using ExecutionSpace = typename DeviceType::execution_space;
 
     // determine the bounding box of the scene
-    TreeConstruction<NO> tree_construction;
+    Details::TreeConstruction<NO> tree_construction;
     tree_construction.calculateBoundingBoxOfTheScene(
         bounding_boxes, _internal_nodes[0].bounding_box );
 
