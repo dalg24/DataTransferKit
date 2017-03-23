@@ -31,7 +31,7 @@ class BVH
     int query( Details::Nearest<Details::Point> const &predicates,
                Kokkos::View<int *, DeviceType> out ) const;
 
-    int query( Details::Within<Details::Point> const &predicates,
+    int query( Details::Within const &predicates,
                Kokkos::View<int *, DeviceType> out ) const;
 
     bool isLeaf( Node const *node ) const;

@@ -170,10 +170,10 @@ int BVH<NO>::query( Details::Nearest<Details::Point> const &predicates,
 }
 
 template <typename NO>
-int BVH<NO>::query( Details::Within<Details::Point> const &predicates,
+int BVH<NO>::query( Details::Within const &predicates,
                     Kokkos::View<int *, BVH::DeviceType> out ) const
 {
-    using Tag = typename Details::Within<Details::Point>::Tag;
+    using Tag = typename Details::Within::Tag;
     return Details::query_dispatch( this, predicates, out, Tag{} );
 }
 
