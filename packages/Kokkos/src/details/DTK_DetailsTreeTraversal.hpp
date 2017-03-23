@@ -20,36 +20,21 @@ struct Node;
 namespace Details
 {
 
-struct CollisionList
-{
-    void add( int i, int j ) { _ij.emplace_back( i, j ); }
-    std::vector<std::pair<int, int>> _ij;
-};
-
-template <typename NO>
-void traverseRecursive( CollisionList &list,
-                        ::DataTransferKit::BVH<NO> const &bvh,
-                        AABB const &queryAABB, int queryObjectIdx,
-                        Node const *node );
-
-template <typename NO>
-void traverseIterative( CollisionList &list, BVH<NO> const &bvh,
-                        AABB const &queryAABB, int queryObjectIdx );
-// TODO: get rid of this guy
-bool checkOverlap( AABB const &a, AABB const &b );
+// There are two (related) families of search: one using a spatial predicate and
+// one using nearest neighbours query (see boost::geometry::queries
+// documentation).
+template <typename NO, typename Predicate>
+std::list<int> spatial_query( BVH<NO> const &bvh, Point const &query_point,
+                              Predicate const &predicate );
 
 // query k nearest neighbours
 template <typename NO>
 std::list<std::pair<int, double>>
-nearest( BVH<NO> const &bvh, Point const &query_point, int k = 1 );
-
-// radius search
-template <typename NO>
-std::list<std::pair<int, double>>
-within( BVH<NO> const &bvh, Point const &query_point, double radius );
+nearest_query( BVH<NO> const &bvh, Point const &query_point, int k = 1 );
 
 // priority queue helper for nearest neighbor search
 using Value = std::pair<Node const *, double>;
+
 struct CompareDistance
 {
     bool operator()( Value const &lhs, Value const &rhs )
@@ -58,8 +43,10 @@ struct CompareDistance
         return lhs.second > rhs.second;
     }
 };
+
 using PriorityQueue =
     std::priority_queue<Value, std::vector<Value>, CompareDistance>;
+
 // helper for k nearest neighbors search
 // container to store candidates throughout the search
 struct SortedList
@@ -93,14 +80,15 @@ struct SortedList
         []( Value const &a, Value const &b ) { return a.second < b.second; };
     Container::size_type _maxsize;
 };
-using Stack = std::stack<Value, std::vector<Value>>;
+
+using Stack = std::stack<Node const *, std::vector<Node const *>>;
 
 template <typename NO, typename Predicate>
 int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
                     Kokkos::View<int *, typename NO::device_type> out,
                     NearestPredicateTag )
 {
-    auto nearest_neighbors = nearest( *bvh, pred._geometry, pred._k );
+    auto nearest_neighbors = nearest_query( *bvh, pred._geometry, pred._k );
     int const n = nearest_neighbors.size();
     out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
     int i = 0;
@@ -118,123 +106,51 @@ int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
                     Kokkos::View<int *, typename NO::device_type> out,
                     SpatialPredicateTag )
 {
-    auto aaa = within( *bvh, pred._geometry, pred._radius );
+    auto aaa = spatial_query( *bvh, pred );
     int const n = aaa.size();
     out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
     int i = 0;
     for ( auto const &elem : aaa )
     {
-        out[i++] = elem.first;
+        out[i++] = elem;
     }
     return n;
 }
 
-template <typename NO>
-void traverseRecursive( CollisionList &list, BVH<NO> const &bvh,
-                        const AABB &queryAABB, int queryObjectIdx,
-                        Node const *node )
+template <typename NO, typename Predicate>
+std::list<int> spatial_query( BVH<NO> const &bvh, Predicate const &predicate )
 {
-    // Bounding box overlaps the query => process node.
-    if ( checkOverlap( node->bounding_box, queryAABB ) )
-    {
-        // Leaf node => report collision.
-        if ( bvh.isLeaf( node ) )
-            list.add( queryObjectIdx, bvh.getIndex( node ) );
-
-        // Internal node => recurse to children.
-        else
-        {
-            Node const *childL = node->children.first;
-            Node const *childR = node->children.second;
-            traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childL );
-            traverseRecursive( list, bvh, queryAABB, queryObjectIdx, childR );
-        }
-    }
-}
-
-template <typename NO>
-void traverseIterative( CollisionList &list, BVH<NO> const &bvh,
-                        AABB const &queryAABB, int queryObjectIdx )
-{
-    // Allocate traversal stack from thread-local memory,
-    // and push NULL to indicate that there are no postponed nodes.
-    Node const *stack[64];
-    Node const **stackPtr = stack;
-    *stackPtr++ = NULL; // push
-
-    // Traverse nodes starting from the root.
-    Node const *node = bvh.getRoot();
-    do
-    {
-        // Check each child node for overlap.
-        Node const *childL = node->children.first;
-        Node const *childR = node->children.second;
-        bool overlapL = ( checkOverlap( queryAABB, childL->bounding_box ) );
-        bool overlapR = ( checkOverlap( queryAABB, childR->bounding_box ) );
-
-        // Query overlaps a leaf node => report collision.
-        if ( overlapL && bvh.isLeaf( childL ) )
-            list.add( queryObjectIdx, bvh.getIndex( childL ) );
-
-        if ( overlapR && bvh.isLeaf( childR ) )
-            list.add( queryObjectIdx, bvh.getIndex( childR ) );
-
-        // Query overlaps an internal node => traverse.
-        bool traverseL = ( overlapL && !bvh.isLeaf( childL ) );
-        bool traverseR = ( overlapR && !bvh.isLeaf( childR ) );
-
-        if ( !traverseL && !traverseR )
-            node = *--stackPtr; // pop
-        else
-        {
-            node = ( traverseL ) ? childL : childR;
-            if ( traverseL && traverseR )
-                *stackPtr++ = childR; // push
-        }
-    } while ( node != NULL );
-}
-
-template <typename NO>
-std::list<std::pair<int, double>>
-within( BVH<NO> const &bvh, Point const &query_point, double radius )
-{
-    std::list<std::pair<int, double>> ret;
+    std::list<int> ret;
 
     Stack stack;
 
     Node const *node = bvh.getRoot();
-    double node_distance = 0.0;
-    stack.emplace( node, node_distance );
+    stack.emplace( node );
     while ( !stack.empty() )
     {
-        std::tie( node, node_distance ) = stack.top();
+        node = stack.top();
         stack.pop();
         if ( bvh.isLeaf( node ) )
         {
-            ret.emplace_back( bvh.getIndex( node ), node_distance );
+            ret.emplace_back( bvh.getIndex( node ) );
         }
         else
         {
             for ( Node const *child :
                   {node->children.first, node->children.second} )
             {
-                double child_distance =
-                    distance( query_point, child->bounding_box );
-                if ( child_distance <= radius )
-                    stack.emplace( child, child_distance );
+                if ( predicate( child ) )
+                    stack.emplace( child );
             }
         }
     }
-    ret.sort(
-        []( std::pair<int, double> const &a, std::pair<int, double> const &b ) {
-            return a.second > b.second;
-        } );
+
     return ret;
 }
 
 template <typename NO>
-std::list<std::pair<int, double>> nearest( BVH<NO> const &bvh,
-                                           Point const &query_point, int k )
+std::list<std::pair<int, double>>
+nearest_query( BVH<NO> const &bvh, Point const &query_point, int k )
 {
     SortedList candidate_list( k );
 

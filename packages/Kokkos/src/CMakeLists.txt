@@ -370,7 +370,6 @@ APPEND_SET(HEADERS
 )
 
 APPEND_SET(SOURCES
-    details/DTK_DetailsTreeTraversal.cpp
     details/DTK_DetailsAlgorithms.cpp
 )
 

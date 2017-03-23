@@ -1,4 +1,5 @@
 #include <details/DTK_DetailsTreeTraversal.hpp>
+#include <details/DTK_Predicate.hpp>
 
 #include <DTK_LinearBVH.hpp>
 
@@ -11,6 +12,8 @@
 #include <iostream>
 #include <random>
 
+namespace details = DataTransferKit::Details;
+
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, tag_dispatching, NO )
 {
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
@@ -21,13 +24,28 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, tag_dispatching, NO )
         boxes( boxes_vector.data(), n );
     DataTransferKit::BVH<NO> bvh( boxes );
     Kokkos::View<int *, DeviceType> results;
-    bvh.query( DataTransferKit::Details::nearest(
-                   DataTransferKit::Details::Point{0, 0, 0}, 1 ),
-               results );
-    bvh.query( DataTransferKit::Details::within(
-                   DataTransferKit::Details::Point{0, 0, 0}, 0.5 ),
-               results );
+    bvh.query( details::nearest( details::Point{0, 0, 0}, 1 ), results );
+
+    details::Within within_predicate( details::Point{0, 0, 0}, 0.5 );
+    bvh.query( within_predicate, results );
 }
+
+class Overlap
+{
+  public:
+    Overlap( DataTransferKit::AABB const &queryAABB )
+        : _queryAABB( queryAABB )
+    {
+    }
+
+    bool operator()( DataTransferKit::Node const *node ) const
+    {
+        return details::overlaps( node->bounding_box, _queryAABB );
+    }
+
+  private:
+    DataTransferKit::AABB const &_queryAABB;
+};
 
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
 {
@@ -53,7 +71,6 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
                 };
             }
 
-    DataTransferKit::Details::CollisionList collision_list;
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
     Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
         bounding_boxes( bounding_boxes_vector.data(), n );
@@ -62,18 +79,12 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
     // (i) use same objects for the queries than the objects we constructed the
     // BVH
     for ( int i = 0; i < n; ++i )
-        //    DataTransferKit::traverseRecursive(collision_list, bvh,
-        //    bvh._bounding_boxes[i], i, bvh.getRoot());
-        DataTransferKit::Details::traverseIterative( collision_list, bvh,
-                                                     bounding_boxes[i], i );
-
-    // we expect the collision list to be diag(0, 1, ..., nx*ny*nz-1)
-    TEST_EQUALITY( static_cast<int>( collision_list._ij.size() ), n );
-    for ( int i = 0; i < n; ++i )
     {
-        TEST_EQUALITY( collision_list._ij[i].first, i )
-        TEST_EQUALITY( collision_list._ij[i].first,
-                       collision_list._ij[i].second );
+        Overlap overlap_predicate( bounding_boxes[i] );
+        auto collision = details::spatial_query( bvh, overlap_predicate );
+        // we expect the collision list to be diag(0, 1, ..., nx*ny*nz-1)
+        TEST_EQUALITY( collision.size(), 1 );
+        TEST_EQUALITY( *collision.begin(), i );
     }
 
     // (ii) use bounding boxes that overlap with first neighbors
@@ -149,17 +160,13 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
                     ref.emplace( ind( i + 1, j + 1, k + 1 ) );
 
                 // traverse the tree and find potential collisions
-                collision_list._ij.clear();
-                DataTransferKit::Details::traverseIterative(
-                    collision_list, bvh, bounding_boxes[ind( i, j, k )],
-                    ind( i, j, k ) );
+                Overlap overlap_predicate( bounding_boxes[ind( i, j, k )] );
+                auto collision =
+                    details::spatial_query( bvh, overlap_predicate );
                 // check the answer is the same as the reference we computed
-                TEST_EQUALITY( collision_list._ij.size(), ref.size() );
-                for ( auto const &x : collision_list._ij )
-                {
-                    TEST_EQUALITY( ref.count( x.second ), 1 );
-                    TEST_EQUALITY( x.first, ind( i, j, k ) );
-                }
+                TEST_EQUALITY( collision.size(), ref.size() );
+                for ( auto const &x : collision )
+                    TEST_EQUALITY( ref.count( x ), 1 );
             }
     // (iii) use random points
     std::default_random_engine generator;
@@ -180,9 +187,9 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
             y - 0.5 * Ly / ( ny - 1 ), y + 0.5 * Ly / ( ny - 1 ),
             z - 0.5 * Lz / ( nz - 1 ), z + 0.5 * Lz / ( nz - 1 ),
         };
-        collision_list._ij.clear();
-        DataTransferKit::Details::traverseIterative( collision_list, bvh, aabb,
-                                                     -1 );
+
+        Overlap overlap_predicate( aabb );
+        auto collision = details::spatial_query( bvh, overlap_predicate );
         int i = std::round( x / Lx * ( nx - 1 ) );
         int j = std::round( y / Ly * ( ny - 1 ) );
         int k = std::round( z / Lz * ( nz - 1 ) );
@@ -199,16 +206,11 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
             ++count;
             continue;
         }
-        TEST_EQUALITY( collision_list._ij.size(), 1 );
-        TEST_EQUALITY( collision_list._ij[0].first, -1 );
-        TEST_EQUALITY( collision_list._ij[0].second, ind( i, j, k ) );
+        TEST_EQUALITY( collision.size(), 1 );
+        TEST_EQUALITY( *collision.begin(), ind( i, j, k ) );
     }
     // make sure we did not drop all points
     TEST_COMPARE( count, <, n );
-
-    for ( auto const &x : collision_list._ij )
-        std::cout << " (" << x.first << ", " << x.second << ") ";
-    std::cout << "\n";
 }
 
 std::vector<std::array<double, 3>>
@@ -319,8 +321,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         // accessed directly and we use Boost to compute the distance.
         // This will need to be cleaned up, possibly with a templated tree
         // traversal with a predicate.
-        std::list<std::pair<int, double>> sol;
-        sol = DataTransferKit::Details::within( bvh, {x, y, z}, radius );
+        details::Within within_predicate( {x, y, z}, radius );
+        auto sol_within = details::spatial_query( bvh, within_predicate );
 
         // use the R-tree to obtain a reference solution
         std::vector<std::pair<Point, int>> returned_values;
@@ -335,29 +337,23 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         // Anyway, this is fine for now...
         {
             auto const &ref = returned_values;
-            auto compare = []( std::pair<int, double> const &a,
-                               std::pair<int, double> const &b ) {
-                return a.first < b.first;
-            };
-            std::set<std::pair<int, double>, decltype( compare )> tmp(
-                compare );
-            tmp.insert( sol.begin(), sol.end() );
-            TEST_EQUALITY( sol.size(), ref.size() );
-            for ( auto const &x : ref )
-            {
-                auto it = tmp.find( std::make_pair( x.second, -1.0 ) );
-                TEST_ASSERT( it != tmp.end() );
-                TEST_EQUALITY( it->second, bg::distance( centroid, x.first ) );
-            }
+            TEST_EQUALITY( sol_within.size(), ref.size() );
+
+            std::set<int> ref_ids;
+            for ( auto const &id : ref )
+                ref_ids.emplace( id.second );
+
+            for ( auto const &id : sol_within )
+                TEST_EQUALITY( ref_ids.count( id ), 1 );
         }
 
         // k nearest neighbors
-        sol.clear();
         returned_values.clear();
 
         rtree.query( bgi::nearest( Point( x, y, z ), k ),
                      std::back_inserter( returned_values ) );
-        sol = DataTransferKit::Details::nearest( bvh, {x, y, z}, k );
+        std::list<std::pair<int, double>> sol;
+        sol = DataTransferKit::Details::nearest_query( bvh, {x, y, z}, k );
         // copy/paste of the check solution against reference above
         {
             auto const &ref = returned_values;
