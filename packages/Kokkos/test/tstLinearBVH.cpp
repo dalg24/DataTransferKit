@@ -110,7 +110,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
                 int const index = ind( i, j, k );
                 // bounding box around nodes of the structured grid will overlap
                 // with neighboring nodes
-                bounding_boxes[ind( i, j, k )] = {
+                bounding_boxes[index] = {
                     ( i - 1 ) * Lx / ( nx - 1 ), ( i + 1 ) * Lx / ( nx - 1 ),
                     ( j - 1 ) * Ly / ( ny - 1 ), ( j + 1 ) * Ly / ( ny - 1 ),
                     ( k - 1 ) * Lz / ( nz - 1 ), ( k + 1 ) * Lz / ( nz - 1 ),
@@ -188,7 +188,10 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
                     details::spatial_query( bvh, overlap_predicate );
                 first_neighbor( index, 0 ) = collision.size();
                 // Only check the first element because we don't know how many
-                // elements there are when we build the View
+                // elements there are when we build the View. To check the other
+                // points, we need to first compute all the points using Boost.
+                // Then, we need to copy the points in a View and create another
+                // view with the offset.
                 first_neighbor( index, 1 ) = *collision.begin();
             }
     };
