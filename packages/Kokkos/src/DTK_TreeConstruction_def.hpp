@@ -2,9 +2,9 @@
 #define DTK_DETAILSTREECONSTRUCTION_DEF_HPP
 
 #include "DTK_ConfigDefs.hpp"
-
+#include "DTK_KokkosHelpers.hpp"
+#include <Kokkos_Atomic.hpp>
 #include <Kokkos_Sort.hpp>
-#include <details/DTK_DetailsAlgorithms.hpp>
 
 namespace DataTransferKit
 {
@@ -12,24 +12,23 @@ namespace Details
 {
 namespace Functor
 {
-using Box = AABB;
 template <typename DeviceType>
 class AssignMortonCodes
 {
   public:
-    AssignMortonCodes( Kokkos::View<Box const *, DeviceType> bounding_boxes,
+    AssignMortonCodes( Kokkos::View<BBox const *, DeviceType> bounding_boxes,
                        Kokkos::View<unsigned int *, DeviceType> morton_codes,
-                       Box const &scene_bounding_box )
+                       BBox const &scene_bounding_box )
         : _bounding_boxes( bounding_boxes )
         , _morton_codes( morton_codes )
         , _scene_bounding_box( scene_bounding_box )
     {
     }
 
-    KOKKOS_INLINE_FUNCTION
+    KOKKOS_FUNCTION
     void operator()( int const i ) const
     {
-        Details::Point xyz;
+        Point xyz;
         double a, b;
         Details::centroid( _bounding_boxes[i], xyz );
         // scale coordinates with respect to bounding box of the scene
@@ -43,9 +42,9 @@ class AssignMortonCodes
     }
 
   private:
-    Kokkos::View<Box const *, DeviceType> _bounding_boxes;
+    Kokkos::View<BBox const *, DeviceType> _bounding_boxes;
     Kokkos::View<unsigned int *, DeviceType> _morton_codes;
-    Box const &_scene_bounding_box;
+    BBox const &_scene_bounding_box;
 };
 
 template <typename NO>
@@ -101,8 +100,8 @@ class GenerateHierarchy
 
         // Record parent-child relationships.
 
-        _internal_nodes[i].children.first = childA;
-        _internal_nodes[i].children.second = childB;
+        _internal_nodes[i].children_a = childA;
+        _internal_nodes[i].children_b = childB;
         childA->parent = &_internal_nodes[i];
         childB->parent = &_internal_nodes[i];
     }
@@ -119,11 +118,10 @@ class CalculateBoundingBoxes
 {
   public:
     CalculateBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                            Node *root,
-                            std::vector<std::atomic_flag> &atomic_flags )
+                            Node *root, int *ready_flags )
         : _leaf_nodes( leaf_nodes )
         , _root( root )
-        , _atomic_flags( atomic_flags )
+        , _ready_flags( ready_flags )
     {
     }
 
@@ -133,9 +131,10 @@ class CalculateBoundingBoxes
         Node *node = _leaf_nodes[i].parent;
         while ( node != _root )
         {
-            if ( !_atomic_flags[node - _root].test_and_set() )
+            if ( Kokkos::atomic_compare_exchange( &_ready_flags[node - _root],
+                                                  0, 1 ) )
                 break;
-            for ( Node *child : {node->children.first, node->children.second} )
+            for ( Node *child : {node->children_a, node->children_b} )
                 Details::expand( node->bounding_box, child->bounding_box );
             node = node->parent;
         }
@@ -147,14 +146,14 @@ class CalculateBoundingBoxes
   private:
     Kokkos::View<Node *, DeviceType> _leaf_nodes;
     Node *_root;
-    std::vector<std::atomic_flag> &_atomic_flags;
+    mutable int *_ready_flags;
 };
 }
 
 template <typename NO>
 void TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
-    Kokkos::View<AABB const *, DeviceType> bounding_boxes,
-    AABB &scene_bounding_box )
+    Kokkos::View<BBox const *, DeviceType> bounding_boxes,
+    BBox &scene_bounding_box )
 {
     int const n = bounding_boxes.extent( 0 );
     Details::Functor::ExpandBoxWithBox<DeviceType> functor( bounding_boxes );
@@ -166,9 +165,9 @@ void TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
 
 template <typename NO>
 void TreeConstruction<NO>::assignMortonCodes(
-    Kokkos::View<AABB const *, DeviceType> bounding_boxes,
+    Kokkos::View<BBox const *, DeviceType> bounding_boxes,
     Kokkos::View<unsigned int *, DeviceType> morton_codes,
-    AABB const &scene_bounding_box )
+    BBox const &scene_bounding_box )
 {
     int const n = bounding_boxes.extent( 0 );
     Functor::AssignMortonCodes<DeviceType> functor(
@@ -230,39 +229,17 @@ void TreeConstruction<NO>::calculateBoundingBoxes(
     Kokkos::View<Node *, DeviceType> internal_nodes )
 {
     int const n = leaf_nodes.extent( 0 );
-    // possibly use Kokkos::atomic_fetch_add() here
-    std::vector<std::atomic_flag> atomic_flags( n - 1 );
-    // flags are in an unspecified state on construction
-    // their value cannot be copied/moved (constructor and assigment deleted)
-    // so we have to loop over them and initialize them to the clear state
-    for ( auto &flag : atomic_flags )
-        flag.clear();
+    // Use int instead of bool because CAS on CUDA does not support boolean
+    std::vector<int> ready_flags( n - 1, 0 );
 
     Node *root = &internal_nodes[0];
 
     Functor::CalculateBoundingBoxes<DeviceType> functor( leaf_nodes, root,
-                                                         atomic_flags );
+                                                         ready_flags.data() );
     Kokkos::parallel_for( "calculate_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           functor );
     Kokkos::fence();
-}
-
-template <typename NO>
-int TreeConstruction<NO>::commonPrefix(
-    Kokkos::View<unsigned int *, DeviceType> k, int n, int i, int j )
-{
-    if ( j < 0 || j > n - 1 )
-        return -1;
-    // our construction algorithm relies on keys being unique so we handle
-    // explicitly case of duplicate Morton codes by augmenting each key by a bit
-    // representation of its index.
-    if ( k[i] == k[j] )
-    {
-        // countLeadingZeros( k[i] ^ k[j] ) == 32
-        return 32 + Details::countLeadingZeros( i ^ j );
-    }
-    return Details::countLeadingZeros( k[i] ^ k[j] );
 }
 
 template <typename NO>
@@ -281,7 +258,7 @@ int TreeConstruction<NO>::findSplit(
     // Calculate the number of highest bits that are the same
     // for all objects, using the count-leading-zeros intrinsic.
 
-    int common_prefix = __clz( first_code ^ last_code );
+    int common_prefix = clz( first_code ^ last_code );
 
     // Use binary search to find where the next bit differs.
     // Specifically, we are looking for the highest object that
@@ -298,7 +275,7 @@ int TreeConstruction<NO>::findSplit(
         if ( new_split < last )
         {
             unsigned int split_code = sorted_morton_codes[new_split];
-            int split_prefix = __clz( first_code ^ split_code );
+            int split_prefix = clz( first_code ^ split_code );
             if ( split_prefix > common_prefix )
                 split = new_split; // accept proposal
         }
@@ -311,8 +288,6 @@ template <typename NO>
 Kokkos::pair<int, int> TreeConstruction<NO>::determineRange(
     Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n, int i )
 {
-    using std::min;
-    using std::max;
     // determine direction of the range (+1 or -1)
     int direction = sgn( commonPrefix( sorted_morton_codes, n, i, i + 1 ) -
                          commonPrefix( sorted_morton_codes, n, i, i - 1 ) );
@@ -338,7 +313,8 @@ Kokkos::pair<int, int> TreeConstruction<NO>::determineRange(
             split += step;
     } while ( step > 1 );
     int j = i + split * direction;
-    return {min( i, j ), max( i, j )};
+    return {DataTransferKit::KokkosHelpers::min( i, j ),
+            DataTransferKit::KokkosHelpers::max( i, j )};
 }
 }
 }

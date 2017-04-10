@@ -5,7 +5,7 @@
 #include <Kokkos_Array.hpp>
 #include <Kokkos_View.hpp>
 
-#include <DTK_AABB.hpp>
+#include <DTK_Box.hpp>
 #include <DTK_Node.hpp>
 #include <details/DTK_DetailsAlgorithms.hpp>
 #include <details/DTK_Predicate.hpp>
@@ -22,23 +22,37 @@ class BVH
   public:
     using DeviceType = typename NO::device_type;
 
-    BVH( Kokkos::View<AABB const *, DeviceType> bounding_boxes );
+    BVH();
+
+    BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes );
 
     int size() const;
 
-    AABB bounds() const;
+    BBox bounds() const;
 
-    int query( Details::Nearest<Details::Point> const &predicates,
+    int query( Details::Nearest const &predicates,
                Kokkos::View<int *, DeviceType> out ) const;
 
     int query( Details::Within const &predicates,
                Kokkos::View<int *, DeviceType> out ) const;
 
-    bool isLeaf( Node const *node ) const;
+    // COMMENT: could also check that pointer is in the range [leaf_nodes,
+    // leaf_nodes+n]
+    KOKKOS_INLINE_FUNCTION
+    bool isLeaf( Node const *node ) const
+    {
+        return ( node->children_a == nullptr ) &&
+               ( node->children_b == nullptr );
+    }
 
-    int getIndex( Node const *leaf ) const;
+    KOKKOS_INLINE_FUNCTION
+    int getIndex( Node const *leaf ) const
+    {
+        return _indices[leaf - _leaf_nodes.data()];
+    }
 
-    Node const *getRoot() const;
+    KOKKOS_INLINE_FUNCTION
+    Node const *getRoot() const { return _internal_nodes.data(); }
 
   private:
     Kokkos::View<Node *, DeviceType> _leaf_nodes;
