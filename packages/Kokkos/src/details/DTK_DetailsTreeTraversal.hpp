@@ -20,18 +20,6 @@ struct Node;
 namespace Details
 {
 
-// There are two (related) families of search: one using a spatial predicate and
-// one using nearest neighbours query (see boost::geometry::queries
-// documentation).
-template <typename NO, typename Predicate>
-std::list<int> spatial_query( BVH<NO> const &bvh, Point const &query_point,
-                              Predicate const &predicate );
-
-// query k nearest neighbours
-template <typename NO>
-std::list<std::pair<int, double>>
-nearest_query( BVH<NO> const &bvh, Point const &query_point, int k = 1 );
-
 // priority queue helper for nearest neighbor search
 using Value = std::pair<Node const *, double>;
 
@@ -81,93 +69,85 @@ struct SortedList
     Container::size_type _maxsize;
 };
 
-using Stack = std::stack<Node const *, std::vector<Node const *>>;
-
+// There are two (related) families of search: one using a spatial predicate and
+// one using nearest neighbours query (see boost::geometry::queries
+// documentation).
 template <typename NO, typename Predicate>
-int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
-                    Kokkos::View<int *, typename NO::device_type> out,
-                    NearestPredicateTag )
+KOKKOS_FUNCTION void spatial_query( BVH<NO> const &bvh,
+                                    Predicate const &predicate, int *indices,
+                                    unsigned int &n_indices )
 {
-    auto nearest_neighbors = nearest_query( *bvh, pred._geometry, pred._k );
-    int const n = nearest_neighbors.size();
-    out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
-    int i = 0;
-    for ( auto const &elem : nearest_neighbors )
-    {
-        out[i++] = elem.first;
-    }
-    if ( i != n )
-        throw std::runtime_error( "ohhh no" );
-    return n;
-}
-
-template <typename NO, typename Predicate>
-int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
-                    Kokkos::View<int *, typename NO::device_type> out,
-                    SpatialPredicateTag )
-{
-    auto aaa = spatial_query( *bvh, pred );
-    int const n = aaa.size();
-    out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
-    int i = 0;
-    for ( auto const &elem : aaa )
-    {
-        out[i++] = elem;
-    }
-    return n;
-}
-
-template <typename NO, typename Predicate>
-std::list<int> spatial_query( BVH<NO> const &bvh, Predicate const &predicate )
-{
-    std::list<int> ret;
-
-    Stack stack;
+    // Allocate traversal stack from thread-local memory, and push nullptr to
+    // indicate that there are no postponed nodes.
+    Node const *stack[64];
+    Node const **stack_ptr = stack;
+    *stack_ptr++ = nullptr;
 
     Node const *node = bvh.getRoot();
-    stack.emplace( node );
-    while ( !stack.empty() )
+    unsigned int pos = 0;
+    do
     {
-        node = stack.top();
-        stack.pop();
         if ( bvh.isLeaf( node ) )
         {
-            ret.emplace_back( bvh.getIndex( node ) );
+            indices[pos] = bvh.getIndex( node );
+            ++pos;
         }
         else
         {
-            for ( Node const *child :
-                  {node->children.first, node->children.second} )
+            for ( Node const *child : {node->children_a, node->children_b} )
             {
                 if ( predicate( child ) )
-                    stack.emplace( child );
+                    *stack_ptr++ = child; // Push
             }
         }
-    }
 
-    return ret;
+        node = *--stack_ptr; // Pop
+    } while ( node != nullptr );
+    n_indices = pos;
 }
 
-template <typename NO>
-std::list<std::pair<int, double>>
-nearest_query( BVH<NO> const &bvh, Point const &query_point, int k )
+template <typename NO, typename Predicate>
+unsigned int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
+                             Kokkos::View<int *, typename NO::device_type> out,
+                             SpatialPredicateTag )
 {
+    unsigned int constexpr n_max_indices = 1000;
+    int indices[n_max_indices];
+    unsigned int n_indices = 0;
+    spatial_query( *bvh, pred, indices, n_indices );
+    out = Kokkos::View<int *, typename NO::device_type>( "dummy", n_indices );
+    for ( unsigned int i = 0; i < n_indices; ++i )
+    {
+        out[i] = indices[i];
+    }
+    return n_indices;
+}
+
+// query k nearest neighbours
+template <typename NO>
+KOKKOS_FUNCTION void nearest_query( BVH<NO> const &bvh,
+                                    Point const &query_point, int k,
+                                    int *indices, unsigned int &n_indices )
+{
+#ifndef KOKKOS_HAVE_CUDA
     SortedList candidate_list( k );
 
     PriorityQueue queue;
-    // priority does not matter for the root since the node will be processed
-    // directly and removed from the priority queue
-    // we don't even bother computing the distance to it
-    Node const *node = bvh.getRoot();
+    // priority does not matter for the root since the node will be
+    processed
+        // directly and removed from the priority queue
+        // we don't even bother computing the distance to it
+        Node const *node = bvh.getRoot();
     double node_distance = 0.0;
     queue.emplace( node, node_distance );
 
     double cutoff = Kokkos::ArithTraits<double>::max();
     while ( !queue.empty() && node_distance < cutoff )
     {
-        // get the node that is on top of the priority list (i.e. is the closest
-        // to the query point)
-        std::tie( node, node_distance ) = queue.top();
+        // get the node that is on top of the priority list (i.e. is the
+        closest
+            // to the query point)
+            std::tie( node, node_distance ) = queue.top();
         queue.pop();
         if ( bvh.isLeaf( node ) )
         {
@@ -183,8 +163,7 @@ nearest_query( BVH<NO> const &bvh, Point const &query_point, int k )
         else
         {
             // insert children of the node in the priority list
-            for ( Node const *child :
-                  {node->children.first, node->children.second} )
+            for ( Node const *child : {node->children_a, node->children_b} )
             {
                 double child_distance =
                     distance( query_point, child->bounding_box );
@@ -192,7 +171,32 @@ nearest_query( BVH<NO> const &bvh, Point const &query_point, int k )
             }
         }
     }
-    return candidate_list._sorted_list;
+
+    n_indices = candidate_list.size();
+    unsigned int pos = 0;
+    for ( auto const &elem : candidate_list._sorted_list )
+    {
+        indices[pos] = elem.first;
+        ++pos;
+    }
+#endif
+}
+
+template <typename NO, typename Predicate>
+int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
+                    Kokkos::View<int *, typename NO::device_type> out,
+                    NearestPredicateTag )
+{
+    unsigned int constexpr n_max_indices = 1000;
+    int indices[n_max_indices];
+    unsigned int n_indices = 0;
+    nearest_query( *bvh, pred._query_point, pred._k, indices, n_indices );
+    int const n = n_indices;
+    out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
+    for ( unsigned int i = 0; i < n_indices; ++i )
+        out[i] = indices[i];
+
+    return n;
 }
 
 } // end namespace Details

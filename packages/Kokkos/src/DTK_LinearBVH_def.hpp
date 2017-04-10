@@ -61,7 +61,7 @@ class SetBoundingBoxes
 
     SetBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
                       Kokkos::View<int *, DeviceType> indices,
-                      Kokkos::View<AABB const *, DeviceType> bounding_boxes )
+                      Kokkos::View<BBox const *, DeviceType> bounding_boxes )
         : _leaf_nodes( leaf_nodes )
         , _indices( indices )
         , _bounding_boxes( bounding_boxes )
@@ -77,12 +77,12 @@ class SetBoundingBoxes
   private:
     Kokkos::View<Node *, DeviceType> _leaf_nodes;
     Kokkos::View<int *, DeviceType> _indices;
-    Kokkos::View<AABB const *, DeviceType> _bounding_boxes;
+    Kokkos::View<BBox const *, DeviceType> _bounding_boxes;
 };
 }
 
 template <typename NO>
-BVH<NO>::BVH( Kokkos::View<AABB const *, DeviceType> bounding_boxes )
+BVH<NO>::BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes )
     : _leaf_nodes( "leaf_nodes", bounding_boxes.extent( 0 ) )
     , _internal_nodes( "internal_nodes", bounding_boxes.extent( 0 ) - 1 )
     , _indices( "sorted_indices", bounding_boxes.extent( 0 ) )
@@ -128,27 +128,6 @@ BVH<NO>::BVH( Kokkos::View<AABB const *, DeviceType> bounding_boxes )
     tree_construction.calculateBoundingBoxes( _leaf_nodes, _internal_nodes );
 }
 
-// COMMENT: could also check that pointer is in the range [leaf_nodes,
-// leaf_nodes+n]
-template <typename NO>
-bool BVH<NO>::isLeaf( Node const *node ) const
-{
-    return ( node->children.first == nullptr ) &&
-           ( node->children.second == nullptr );
-}
-
-template <typename NO>
-int BVH<NO>::getIndex( Node const *leaf ) const
-{
-    return _indices[leaf - _leaf_nodes.data()];
-}
-
-template <typename NO>
-Node const *BVH<NO>::getRoot() const
-{
-    return _internal_nodes.data();
-}
-
 template <typename NO>
 int BVH<NO>::size() const
 {
@@ -156,16 +135,16 @@ int BVH<NO>::size() const
 }
 
 template <typename NO>
-AABB BVH<NO>::bounds() const
+BBox BVH<NO>::bounds() const
 {
     return getRoot()->bounding_box;
 }
 
 template <typename NO>
-int BVH<NO>::query( Details::Nearest<Details::Point> const &predicates,
+int BVH<NO>::query( Details::Nearest const &predicates,
                     Kokkos::View<int *, typename NO::device_type> out ) const
 {
-    using Tag = typename Details::Nearest<Details::Point>::Tag;
+    using Tag = typename Details::Nearest::Tag;
     return Details::query_dispatch( this, predicates, out, Tag{} );
 }
 

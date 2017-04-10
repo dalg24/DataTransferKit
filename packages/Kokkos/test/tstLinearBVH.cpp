@@ -14,37 +14,228 @@
 
 namespace details = DataTransferKit::Details;
 
+template <typename DeviceType>
+class FillBoxes
+{
+  public:
+    KOKKOS_INLINE_FUNCTION
+    FillBoxes( Kokkos::View<DataTransferKit::BBox *, DeviceType> boxes )
+        : _boxes( boxes )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        if ( i == 0 )
+            _boxes[0] = {0, 0, 0, 0, 0, 0};
+        else
+            _boxes[1] = {1, 1, 1, 1, 1, 1};
+    }
+
+  private:
+    Kokkos::View<DataTransferKit::BBox *, DeviceType> _boxes;
+};
+
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, tag_dispatching, NO )
 {
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    using ExecutionSpace = typename DeviceType::execution_space;
     int const n = 2;
-    std::vector<DataTransferKit::AABB> boxes_vector = {{{0, 0, 0, 0, 0, 0}},
-                                                       {{1, 1, 1, 1, 1, 1}}};
-    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
-        boxes( boxes_vector.data(), n );
+    Kokkos::View<DataTransferKit::BBox *, DeviceType> boxes( "boxes", n );
+    FillBoxes<DeviceType> fill_boxes_functor( boxes );
+    Kokkos::parallel_for( "file_boxes_functor",
+                          Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
+                          fill_boxes_functor );
+
     DataTransferKit::BVH<NO> bvh( boxes );
     Kokkos::View<int *, DeviceType> results;
-    bvh.query( details::nearest( details::Point{0, 0, 0}, 1 ), results );
+    DataTransferKit::Point p1 = {0., 0., 0.};
+    bvh.query( details::nearest( p1, 1 ), results );
 
-    details::Within within_predicate( details::Point{0, 0, 0}, 0.5 );
+    // TODO This cannot work with cuda because the point needs to be defined on
+    // the device.
+    details::Within within_predicate( p1, 0.5 );
     bvh.query( within_predicate, results );
 }
 
 class Overlap
 {
   public:
-    Overlap( DataTransferKit::AABB const &queryAABB )
-        : _queryAABB( queryAABB )
+    KOKKOS_INLINE_FUNCTION
+    Overlap( DataTransferKit::BBox const &queryBox )
+        : _queryBox( queryBox )
     {
     }
 
+    KOKKOS_INLINE_FUNCTION
     bool operator()( DataTransferKit::Node const *node ) const
     {
-        return details::overlaps( node->bounding_box, _queryAABB );
+        return details::overlaps( node->bounding_box, _queryBox );
     }
 
   private:
-    DataTransferKit::AABB const &_queryAABB;
+    DataTransferKit::BBox const &_queryBox;
+};
+
+template <typename NO>
+class FillBoundingBoxes
+{
+  public:
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+
+    FillBoundingBoxes(
+        Kokkos::View<DataTransferKit::BBox *, DeviceType> bounding_boxes,
+        double Lx, double Ly, double Lz, double eps, int nx, int ny, int nz )
+        : _bounding_boxes( bounding_boxes )
+        , _Lx( Lx )
+        , _Ly( Ly )
+        , _Lz( Lz )
+        , _nx( nx )
+        , _ny( ny )
+        , _nz( nz )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        for ( int j = 0; j < _ny; ++j )
+            for ( int k = 0; k < _nz; ++k )
+            {
+                _bounding_boxes[i + j * _nx + k * ( _nx * _ny )] = {
+                    i * _Lx / ( _nx - 1 ) - _eps, i * _Lx / ( _nx - 1 ) + _eps,
+                    j * _Ly / ( _ny - 1 ) - _eps, j * _Ly / ( _ny - 1 ) + _eps,
+                    k * _Lz / ( _nz - 1 ) - _eps, k * _Lz / ( _nz - 1 ) + _eps,
+                };
+            }
+    }
+
+  private:
+    Kokkos::View<DataTransferKit::BBox *, DeviceType> _bounding_boxes;
+    double _Lx;
+    double _Ly;
+    double _Lz;
+    double _eps;
+    int const _nx;
+    int const _ny;
+    int const _nz;
+};
+
+template <typename NO>
+class CheckIdentity
+{
+  public:
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    CheckIdentity(
+        Kokkos::View<DataTransferKit::BBox *, DeviceType> bounding_boxes,
+        DataTransferKit::BVH<NO> *bvh,
+        Kokkos::View<int * [2], DeviceType> identity )
+        : _bounding_boxes( bounding_boxes )
+        , _bvh( bvh )
+        , _identity( identity )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        Overlap overlap_predicate( _bounding_boxes[i] );
+        unsigned int constexpr n_max_indices = 10;
+        int indices[n_max_indices];
+        unsigned int n_indices = 0;
+        details::spatial_query( *_bvh, overlap_predicate, indices, n_indices );
+        _identity( i, 0 ) = n_indices;
+        _identity( i, 1 ) = indices[0];
+    }
+
+  private:
+    Kokkos::View<DataTransferKit::BBox *, DeviceType> _bounding_boxes;
+    DataTransferKit::BVH<NO> *_bvh;
+    Kokkos::View<int * [2], DeviceType> _identity;
+};
+
+template <typename NO>
+class CheckFirstNeighbor
+{
+  public:
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    CheckFirstNeighbor(
+        Kokkos::View<DataTransferKit::BBox *, DeviceType> bounding_boxes,
+        DataTransferKit::BVH<NO> *bvh,
+        Kokkos::View<int * [2], DeviceType> first_neighbor, int nx, int ny,
+        int nz )
+        : _bounding_boxes( bounding_boxes )
+        , _bvh( bvh )
+        , _first_neighbor( first_neighbor )
+        , _nx( nx )
+        , _ny( ny )
+        , _nz( nz )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        for ( int j = 0; j < _ny; ++j )
+            for ( int k = 0; k < _nz; ++k )
+            {
+                int const index = i + j * _nx + k * ( _nx * _ny );
+                Overlap overlap_predicate( _bounding_boxes[index] );
+                unsigned int constexpr n_max_indices = 1000;
+                int indices[n_max_indices];
+                unsigned int n_indices = 0;
+                details::spatial_query( *_bvh, overlap_predicate, indices,
+                                        n_indices );
+                _first_neighbor( i, 0 ) = n_indices;
+                // Only check the first element because we don't know how many
+                // elements there are when we build the View. To check the other
+                // points, we need to first compute all the points using Boost.
+                // Then, we need to copy the points in a View and create another
+                // view with the offset.
+                _first_neighbor( i, 1 ) = indices[0];
+            }
+    }
+
+  private:
+    Kokkos::View<DataTransferKit::BBox *, DeviceType> _bounding_boxes;
+    DataTransferKit::BVH<NO> *_bvh;
+    Kokkos::View<int * [2], DeviceType> _first_neighbor;
+    int _nx;
+    int _ny;
+    int _nz;
+};
+
+template <typename NO>
+class CheckRandom
+{
+  public:
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    CheckRandom( Kokkos::View<DataTransferKit::BBox *, DeviceType> aabb,
+                 DataTransferKit::BVH<NO> *bvh,
+                 Kokkos::View<int * [2], DeviceType> random )
+        : _aabb( aabb )
+        , _bvh( bvh )
+        , _random( random )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        Overlap overlap_predicate( _aabb[i] );
+        unsigned int constexpr n_max_indices = 1000;
+        int indices[n_max_indices];
+        unsigned int n_indices = 0;
+        details::spatial_query( *_bvh, overlap_predicate, indices, n_indices );
+        _random( i, 0 ) = n_indices;
+        _random( i, 1 ) = indices[0];
+    }
+
+  private:
+    Kokkos::View<DataTransferKit::BBox *, DeviceType> _aabb;
+    DataTransferKit::BVH<NO> *_bvh;
+    Kokkos::View<int * [2], DeviceType> _random;
 };
 
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
@@ -56,43 +247,30 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
     int constexpr ny = 11;
     int constexpr nz = 11;
     int constexpr n = nx * ny * nz;
-    std::function<int( int, int, int )> ind = [nx, ny, nz](
-        int i, int j, int k ) { return i + j * nx + k * ( nx * ny ); };
     double eps = 1.0e-6;
-    std::vector<DataTransferKit::AABB> bounding_boxes_vector( n );
-    for ( int i = 0; i < nx; ++i )
-        for ( int j = 0; j < ny; ++j )
-            for ( int k = 0; k < nz; ++k )
-            {
-                bounding_boxes_vector[i + j * nx + k * ( nx * ny )] = {
-                    i * Lx / ( nx - 1 ) - eps, i * Lx / ( nx - 1 ) + eps,
-                    j * Ly / ( ny - 1 ) - eps, j * Ly / ( ny - 1 ) + eps,
-                    k * Lz / ( nz - 1 ) - eps, k * Lz / ( nz - 1 ) + eps,
-                };
-            }
 
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
     using ExecutionSpace = typename DeviceType::execution_space;
-    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
-        bounding_boxes( bounding_boxes_vector.data(), n );
+    Kokkos::View<DataTransferKit::BBox *, DeviceType> bounding_boxes(
+        "bounding_boxes", n );
+    FillBoundingBoxes<NO> fill_bounding_boxes( bounding_boxes, Lx, Ly, Lz, eps,
+                                               nx, ny, nz );
+    Kokkos::parallel_for( "fill_bounding_boxes",
+                          Kokkos::RangePolicy<ExecutionSpace>( 0, nx ),
+                          fill_bounding_boxes );
+
     DataTransferKit::BVH<NO> bvh( bounding_boxes );
 
     // (i) use same objects for the queries than the objects we constructed the
     // BVH
     Kokkos::View<int * [2], DeviceType> identity( "identity", n );
-
-    auto check_identity = KOKKOS_LAMBDA( const int i )
-    {
-        Overlap overlap_predicate( bounding_boxes[i] );
-        auto collision = details::spatial_query( bvh, overlap_predicate );
-        identity( i, 0 ) = collision.size();
-        identity( i, 1 ) = *collision.begin();
-    };
+    CheckIdentity<NO> check_identity( bounding_boxes, &bvh, identity );
 
     Kokkos::parallel_for( "check_identity",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           check_identity );
 
+    // TODO move back to host
     // we expect the collision list to be diag(0, 1, ..., nx*ny*nz-1)
     for ( int i = 0; i < n; ++i )
     {
@@ -177,24 +355,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
 
     Kokkos::View<int * [2], DeviceType> first_neighbor( "first_neighbor", n );
 
-    auto check_first_neighbor = KOKKOS_LAMBDA( const int i )
-    {
-        for ( int j = 0; j < ny; ++j )
-            for ( int k = 0; k < nz; ++k )
-            {
-                int const index = ind( i, j, k );
-                Overlap overlap_predicate( bounding_boxes[index] );
-                auto collision =
-                    details::spatial_query( bvh, overlap_predicate );
-                first_neighbor( index, 0 ) = collision.size();
-                // Only check the first element because we don't know how many
-                // elements there are when we build the View. To check the other
-                // points, we need to first compute all the points using Boost.
-                // Then, we need to copy the points in a View and create another
-                // view with the offset.
-                first_neighbor( index, 1 ) = *collision.begin();
-            }
-    };
+    CheckFirstNeighbor<NO> check_first_neighbor( bounding_boxes, &bvh,
+                                                 first_neighbor, nx, ny, nz );
 
     Kokkos::parallel_for( "check_first_neighbor",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, nx ),
@@ -219,7 +381,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
 
     int nn = 1000;
     int count = 0; // drop point if mapped into [0.5-eps], 0.5+eps]^3
-    Kokkos::View<DataTransferKit::AABB *, ExecutionSpace> aabb( "aabb", nn );
+    Kokkos::View<DataTransferKit::BBox *, ExecutionSpace> aabb( "aabb", nn );
     std::vector<int> indices( nn );
     for ( int l = 0; l < nn; ++l )
     {
@@ -252,14 +414,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
     }
 
     Kokkos::View<int * [2], DeviceType> random( "random", n );
-    auto check_random = KOKKOS_LAMBDA( const int i )
-    {
-
-        Overlap overlap_predicate( aabb[i] );
-        auto collision = details::spatial_query( bvh, overlap_predicate );
-        random( i, 0 ) = collision.size();
-        random( i, 1 ) = *collision.begin();
-    };
+    CheckRandom<NO> check_random( aabb, &bvh, random );
 
     Kokkos::parallel_for( "check_random",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, nn ),
@@ -312,6 +467,85 @@ std::vector<std::array<double, 3>> make_random_cloud( double Lx, double Ly,
     return cloud;
 }
 
+template <typename NO>
+class RandomWithinLambda
+{
+  public:
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    using ExecutionSpace = typename DeviceType::execution_space;
+
+    RandomWithinLambda( Kokkos::View<double * [3], ExecutionSpace> point_coords,
+                        Kokkos::View<double *, ExecutionSpace> radii,
+                        Kokkos::View<int * [2], ExecutionSpace> within_n_pts,
+                        DataTransferKit::BVH<NO> *bvh )
+        : _point_coords( point_coords )
+        , _radii( radii )
+        , _within_n_pts( within_n_pts )
+        , _bvh( bvh )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        details::Within within_predicate( {_point_coords( i, 0 ),
+                                           _point_coords( i, 1 ),
+                                           _point_coords( i, 2 )},
+                                          _radii( i ) );
+        unsigned int constexpr n_max_indices = 1000;
+        int indices[n_max_indices];
+        unsigned int n_indices = 0;
+        details::spatial_query( *_bvh, within_predicate, indices, n_indices );
+        _within_n_pts( i, 0 ) = n_indices;
+        _within_n_pts( i, 1 ) = indices[0];
+    }
+
+  private:
+    Kokkos::View<double * [3], ExecutionSpace> _point_coords;
+    Kokkos::View<double *, ExecutionSpace> _radii;
+    Kokkos::View<int * [2], ExecutionSpace> _within_n_pts;
+    DataTransferKit::BVH<NO> *_bvh;
+};
+
+template <typename NO>
+class RandomNearestLambda
+{
+  public:
+    using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
+    using ExecutionSpace = typename DeviceType::execution_space;
+
+    RandomNearestLambda(
+        Kokkos::View<double * [3], ExecutionSpace> point_coords,
+        Kokkos::View<int * [2], ExecutionSpace> nearest_n_pts,
+        Kokkos::View<int *, ExecutionSpace> k, DataTransferKit::BVH<NO> *bvh )
+        : _point_coords( point_coords )
+        , _nearest_n_pts( nearest_n_pts )
+        , _k( k )
+        , _bvh( bvh )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        unsigned int constexpr n_max_indices = 1000;
+        int indices[n_max_indices];
+        unsigned int n_indices = 0;
+        details::nearest_query( *_bvh,
+                                {_point_coords( i, 0 ), _point_coords( i, 1 ),
+                                 _point_coords( i, 2 )},
+                                _k[i], indices, n_indices );
+        _nearest_n_pts( i, 0 ) = n_indices;
+        _nearest_n_pts( i, 1 ) = indices[0];
+    }
+
+  private:
+    Kokkos::View<double * [3], ExecutionSpace> _point_coords;
+    Kokkos::View<int * [2], ExecutionSpace> _nearest_n_pts;
+    Kokkos::View<int *, ExecutionSpace> _k;
+    DataTransferKit::BVH<NO> *_bvh;
+};
+
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
 {
     namespace bg = boost::geometry;
@@ -341,7 +575,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
     }
 
     // build bounding volume hierarchy
-    std::vector<DataTransferKit::AABB> bounding_boxes_vector( n );
+    std::vector<DataTransferKit::BBox> bounding_boxes_vector( n );
     for ( int i = 0; i < n; ++i )
     {
         auto const &point = cloud[i];
@@ -353,7 +587,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         };
     }
     using DeviceType = typename DataTransferKit::BVH<NO>::DeviceType;
-    Kokkos::View<DataTransferKit::AABB *, DeviceType, Kokkos::MemoryUnmanaged>
+    Kokkos::View<DataTransferKit::BBox *, DeviceType, MemoryUnmanaged>
         bounding_boxes( bounding_boxes_vector.data(), n );
     DataTransferKit::BVH<NO> bvh( bounding_boxes );
 
@@ -413,15 +647,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
                      std::back_inserter( returned_values_nearest[i] ) );
     }
 
-    auto random_within_lambda = KOKKOS_LAMBDA( const int i )
-    {
-        details::Within within_predicate(
-            {point_coords( i, 0 ), point_coords( i, 1 ), point_coords( i, 2 )},
-            radii( i ) );
-        auto sol_within = details::spatial_query( bvh, within_predicate );
-        within_n_pts( i, 0 ) = sol_within.size();
-        within_n_pts( i, 1 ) = *sol_within.begin();
-    };
+    RandomWithinLambda<NO> random_within_lambda( point_coords, radii,
+                                                 within_n_pts, &bvh );
 
     Kokkos::parallel_for( "random_within",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n_points ),
@@ -439,15 +666,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
             TEST_EQUALITY( ref_ids.count( within_n_pts( i, 1 ) ), 1 );
     }
 
-    auto random_nearest_lambda = KOKKOS_LAMBDA( const int i )
-    {
-        auto sol_nearest = DataTransferKit::Details::nearest_query(
-            bvh,
-            {point_coords( i, 0 ), point_coords( i, 1 ), point_coords( i, 2 )},
-            k[i] );
-        nearest_n_pts( i, 0 ) = sol_nearest.size();
-        nearest_n_pts( i, 1 ) = sol_nearest.begin()->first;
-    };
+    RandomNearestLambda<NO> random_nearest_lambda( point_coords, nearest_n_pts,
+                                                   k, &bvh );
 
     Kokkos::parallel_for( "random_nearest",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n_points ),
