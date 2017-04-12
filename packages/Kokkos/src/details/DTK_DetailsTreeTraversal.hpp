@@ -1,9 +1,10 @@
 #ifndef DTK_DETAILS_TREE_TRAVERSAL_HPP
 #define DTK_DETAILS_TREE_TRAVERSAL_HPP
 
-#include <details/DTK_DetailsAlgorithms.hpp> // overlap TODO:remove it
+#include <details/DTK_DetailsAlgorithms.hpp>
 #include <details/DTK_Predicate.hpp>
 
+#include <DTK_BVHQuery.hpp>
 #include <DTK_LinearBVH.hpp> // BVH
 
 #include <functional>
@@ -73,7 +74,7 @@ struct SortedList
 // one using nearest neighbours query (see boost::geometry::queries
 // documentation).
 template <typename NO, typename Predicate>
-KOKKOS_FUNCTION void spatial_query( BVH<NO> const &bvh,
+KOKKOS_FUNCTION void spatial_query( BVH<NO> const bvh,
                                     Predicate const &predicate, int *indices,
                                     unsigned int &n_indices )
 {
@@ -83,13 +84,13 @@ KOKKOS_FUNCTION void spatial_query( BVH<NO> const &bvh,
     Node const **stack_ptr = stack;
     *stack_ptr++ = nullptr;
 
-    Node const *node = bvh.getRoot();
+    Node const *node = BVHQuery<NO>::getRoot( bvh );
     unsigned int pos = 0;
     do
     {
-        if ( bvh.isLeaf( node ) )
+        if ( BVHQuery<NO>::isLeaf( node ) )
         {
-            indices[pos] = bvh.getIndex( node );
+            indices[pos] = BVHQuery<NO>::getIndex( bvh, node );
             ++pos;
         }
         else
@@ -107,14 +108,14 @@ KOKKOS_FUNCTION void spatial_query( BVH<NO> const &bvh,
 }
 
 template <typename NO, typename Predicate>
-unsigned int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
+unsigned int query_dispatch( BVH<NO> const bvh, Predicate const &pred,
                              Kokkos::View<int *, typename NO::device_type> out,
                              SpatialPredicateTag )
 {
     unsigned int constexpr n_max_indices = 1000;
     int indices[n_max_indices];
     unsigned int n_indices = 0;
-    spatial_query( *bvh, pred, indices, n_indices );
+    spatial_query( bvh, pred, indices, n_indices );
     out = Kokkos::View<int *, typename NO::device_type>( "dummy", n_indices );
     for ( unsigned int i = 0; i < n_indices; ++i )
     {
@@ -125,19 +126,18 @@ unsigned int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
 
 // query k nearest neighbours
 template <typename NO>
-KOKKOS_FUNCTION void nearest_query( BVH<NO> const &bvh,
-                                    Point const &query_point, int k,
-                                    int *indices, unsigned int &n_indices )
+KOKKOS_FUNCTION void nearest_query( BVH<NO> const bvh, Point const &query_point,
+                                    int k, int *indices,
+                                    unsigned int &n_indices )
 {
-#ifndef KOKKOS_HAVE_CUDA
+#ifndef KOKKOS_ENABLE_CUDA
     SortedList candidate_list( k );
 
     PriorityQueue queue;
     // priority does not matter for the root since the node will be
-    processed
-        // directly and removed from the priority queue
-        // we don't even bother computing the distance to it
-        Node const *node = bvh.getRoot();
+    // processed directly and removed from the priority queue we don't even
+    // bother computing the distance to it
+    Node const *node = BVHQuery<NO>::getRoot( bvh );
     double node_distance = 0.0;
     queue.emplace( node, node_distance );
 
@@ -145,16 +145,16 @@ KOKKOS_FUNCTION void nearest_query( BVH<NO> const &bvh,
     while ( !queue.empty() && node_distance < cutoff )
     {
         // get the node that is on top of the priority list (i.e. is the
-        closest
-            // to the query point)
-            std::tie( node, node_distance ) = queue.top();
+        // closest to the query point)
+        std::tie( node, node_distance ) = queue.top();
         queue.pop();
-        if ( bvh.isLeaf( node ) )
+        if ( BVHQuery<NO>::isLeaf( node ) )
         {
             if ( node_distance < cutoff )
             {
                 // add leaf node to the candidate list
-                candidate_list.emplace( bvh.getIndex( node ), node_distance );
+                candidate_list.emplace( BVHQuery<NO>::getIndex( bvh, node ),
+                                        node_distance );
                 // update cutoff if k neighbors are in the list
                 if ( candidate_list.full() )
                     std::tie( std::ignore, cutoff ) = candidate_list.back();
@@ -183,14 +183,14 @@ KOKKOS_FUNCTION void nearest_query( BVH<NO> const &bvh,
 }
 
 template <typename NO, typename Predicate>
-int query_dispatch( BVH<NO> const *bvh, Predicate const &pred,
+int query_dispatch( BVH<NO> const bvh, Predicate const &pred,
                     Kokkos::View<int *, typename NO::device_type> out,
                     NearestPredicateTag )
 {
     unsigned int constexpr n_max_indices = 1000;
     int indices[n_max_indices];
     unsigned int n_indices = 0;
-    nearest_query( *bvh, pred._query_point, pred._k, indices, n_indices );
+    nearest_query( bvh, pred._query_point, pred._k, indices, n_indices );
     int const n = n_indices;
     out = Kokkos::View<int *, typename NO::device_type>( "dummy", n );
     for ( unsigned int i = 0; i < n_indices; ++i )

@@ -13,27 +13,6 @@ namespace DataTransferKit
 namespace Functor
 {
 template <typename NO>
-class SetMax
-{
-  public:
-    using DeviceType = typename NO::device_type;
-    using ExecutionSpace = typename DeviceType::execution_space;
-
-    SetMax( Kokkos::View<unsigned int *, DeviceType> morton_indices )
-        : _max( Kokkos::ArithTraits<unsigned int>::max() )
-        , _indices( morton_indices )
-    {
-    }
-
-    KOKKOS_INLINE_FUNCTION
-    void operator()( int const i ) const { _indices[i] = _max; }
-
-  private:
-    unsigned int const _max;
-    Kokkos::View<unsigned int *, DeviceType> _indices;
-};
-
-template <typename NO>
 class SetIndices
 {
   public:
@@ -83,77 +62,44 @@ class SetBoundingBoxes
 
 template <typename NO>
 BVH<NO>::BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes )
-    : _leaf_nodes( "leaf_nodes", bounding_boxes.extent( 0 ) )
-    , _internal_nodes( "internal_nodes", bounding_boxes.extent( 0 ) - 1 )
-    , _indices( "sorted_indices", bounding_boxes.extent( 0 ) )
+    : leaf_nodes( "leaf_nodes", bounding_boxes.extent( 0 ) )
+    , internal_nodes( "internal_nodes", bounding_boxes.extent( 0 ) - 1 )
+    , indices( "sorted_indices", bounding_boxes.extent( 0 ) )
 {
     using ExecutionSpace = typename DeviceType::execution_space;
 
     // determine the bounding box of the scene
     Details::TreeConstruction<NO> tree_construction;
     tree_construction.calculateBoundingBoxOfTheScene(
-        bounding_boxes, _internal_nodes[0].bounding_box );
+        bounding_boxes, internal_nodes[0].bounding_box );
 
     // calculate morton code of all objects
     int const n = bounding_boxes.extent( 0 );
     Kokkos::View<unsigned int *, DeviceType> morton_indices( "morton", n );
-    Functor::SetMax<NO> set_max_functor( morton_indices );
-    Kokkos::parallel_for( "set_morton_indices",
-                          Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
-                          set_max_functor );
-    Kokkos::fence();
     tree_construction.assignMortonCodes( bounding_boxes, morton_indices,
-                                         _internal_nodes[0].bounding_box );
+                                         internal_nodes[0].bounding_box );
 
     // sort them along the Z-order space-filling curve
-    Functor::SetIndices<NO> set_indices_functor( _indices );
+    Functor::SetIndices<NO> set_indices_functor( indices );
     Kokkos::parallel_for( "set_indices",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_indices_functor );
     Kokkos::fence();
-    tree_construction.sortObjects( morton_indices, _indices );
+    tree_construction.sortObjects( morton_indices, indices );
 
     // generate bounding volume hierarchy
     Functor::SetBoundingBoxes<NO> set_bounding_boxes_functor(
-        _leaf_nodes, _indices, bounding_boxes );
+        leaf_nodes, indices, bounding_boxes );
     Kokkos::parallel_for( "set_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_bounding_boxes_functor );
     Kokkos::fence();
-    tree_construction.generateHierarchy( morton_indices, _leaf_nodes,
-                                         _internal_nodes );
+    tree_construction.generateHierarchy( morton_indices, leaf_nodes,
+                                         internal_nodes );
 
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
-    tree_construction.calculateBoundingBoxes( _leaf_nodes, _internal_nodes );
-}
-
-template <typename NO>
-int BVH<NO>::size() const
-{
-    return _leaf_nodes.size();
-}
-
-template <typename NO>
-BBox BVH<NO>::bounds() const
-{
-    return getRoot()->bounding_box;
-}
-
-template <typename NO>
-int BVH<NO>::query( Details::Nearest const &predicates,
-                    Kokkos::View<int *, typename NO::device_type> out ) const
-{
-    using Tag = typename Details::Nearest::Tag;
-    return Details::query_dispatch( this, predicates, out, Tag{} );
-}
-
-template <typename NO>
-int BVH<NO>::query( Details::Within const &predicates,
-                    Kokkos::View<int *, BVH::DeviceType> out ) const
-{
-    using Tag = typename Details::Within::Tag;
-    return Details::query_dispatch( this, predicates, out, Tag{} );
+    tree_construction.calculateBoundingBoxes( leaf_nodes, internal_nodes );
 }
 
 // template <typename SC, typename LO, typename GO, typename NO>
