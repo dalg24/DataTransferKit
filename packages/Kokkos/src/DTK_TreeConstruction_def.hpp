@@ -25,7 +25,7 @@ class AssignMortonCodes
     {
     }
 
-    KOKKOS_FUNCTION
+    KOKKOS_INLINE_FUNCTION
     void operator()( int const i ) const
     {
         Point xyz;
@@ -114,11 +114,28 @@ class GenerateHierarchy
 };
 
 template <typename DeviceType>
+class FillReadyFlags
+{
+  public:
+    FillReadyFlags( Kokkos::View<int *, DeviceType> ready_flags )
+        : _ready_flags( ready_flags )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const { _ready_flags[i] = 0; }
+
+  private:
+    Kokkos::View<int *, DeviceType> _ready_flags;
+};
+
+template <typename DeviceType>
 class CalculateBoundingBoxes
 {
   public:
     CalculateBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                            Node *root, int *ready_flags )
+                            Node *root,
+                            Kokkos::View<int *, DeviceType> ready_flags )
         : _leaf_nodes( leaf_nodes )
         , _root( root )
         , _ready_flags( ready_flags )
@@ -131,8 +148,8 @@ class CalculateBoundingBoxes
         Node *node = _leaf_nodes[i].parent;
         while ( node != _root )
         {
-            if ( Kokkos::atomic_compare_exchange( &_ready_flags[node - _root],
-                                                  0, 1 ) )
+            if ( Kokkos::atomic_compare_exchange_strong(
+                     &_ready_flags[node - _root], 0, 1 ) )
                 break;
             for ( Node *child : {node->children_a, node->children_b} )
                 Details::expand( node->bounding_box, child->bounding_box );
@@ -146,7 +163,7 @@ class CalculateBoundingBoxes
   private:
     Kokkos::View<Node *, DeviceType> _leaf_nodes;
     Node *_root;
-    mutable int *_ready_flags;
+    Kokkos::View<int *, DeviceType> _ready_flags;
 };
 }
 
@@ -169,7 +186,7 @@ void TreeConstruction<NO>::assignMortonCodes(
     Kokkos::View<unsigned int *, DeviceType> morton_codes,
     BBox const &scene_bounding_box )
 {
-    int const n = bounding_boxes.extent( 0 );
+    int const n = morton_codes.extent( 0 );
     Functor::AssignMortonCodes<DeviceType> functor(
         bounding_boxes, morton_codes, scene_bounding_box );
     Kokkos::parallel_for( "assign_morton_codes",
@@ -229,16 +246,21 @@ void TreeConstruction<NO>::calculateBoundingBoxes(
     Kokkos::View<Node *, DeviceType> internal_nodes )
 {
     int const n = leaf_nodes.extent( 0 );
+
     // Use int instead of bool because CAS on CUDA does not support boolean
-    std::vector<int> ready_flags( n - 1, 0 );
+    Kokkos::View<int *, DeviceType> ready_flags( "ready_flags", n - 1 );
+    Functor::FillReadyFlags<DeviceType> fill_functor( ready_flags );
+    Kokkos::parallel_for( "fill_ready_flags",
+                          Kokkos::RangePolicy<ExecutionSpace>( 0, n - 1 ),
+                          fill_functor );
 
     Node *root = &internal_nodes[0];
 
-    Functor::CalculateBoundingBoxes<DeviceType> functor( leaf_nodes, root,
-                                                         ready_flags.data() );
+    Functor::CalculateBoundingBoxes<DeviceType> calc_functor( leaf_nodes, root,
+                                                              ready_flags );
     Kokkos::parallel_for( "calculate_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
-                          functor );
+                          calc_functor );
     Kokkos::fence();
 }
 
