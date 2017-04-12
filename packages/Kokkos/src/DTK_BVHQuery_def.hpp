@@ -8,12 +8,6 @@ namespace DataTransferKit
 {
 
 template <typename NO>
-BBox BVHQuery<NO>::bounds( BVH<NO> const bvh )
-{
-    return getRoot( bvh )->bounding_box;
-}
-
-template <typename NO>
 int BVHQuery<NO>::query( BVH<NO> const bvh, Details::Nearest const &predicates,
                          Kokkos::View<int *, typename NO::device_type> out )
 {
