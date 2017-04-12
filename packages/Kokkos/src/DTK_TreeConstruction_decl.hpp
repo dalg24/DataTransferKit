@@ -20,8 +20,6 @@ struct TreeConstruction
     using DeviceType = typename NO::device_type;
     using ExecutionSpace = typename DeviceType::execution_space;
 
-    // COMMENT: most of these could/should be protected function in BVH to avoid
-    // passing all this data around
     static void calculateBoundingBoxOfTheScene(
         Kokkos::View<BBox const *, DeviceType> bounding_boxes,
         BBox &scene_bounding_box );

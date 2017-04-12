@@ -15,7 +15,7 @@
 namespace DataTransferKit
 {
 
-// Bounding Volume Hierarchy
+// Bounding Volume Hierarchy.
 template <typename NO>
 class BVH
 {

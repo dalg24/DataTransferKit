@@ -12,8 +12,6 @@ class BVHQuery
 {
   public:
     using DeviceType = typename NO::device_type;
-    static BBox bounds( BVH<NO> bvh );
-
     static int query( BVH<NO> const bvh, Details::Nearest const &predicates,
                       Kokkos::View<int *, DeviceType> out );
 

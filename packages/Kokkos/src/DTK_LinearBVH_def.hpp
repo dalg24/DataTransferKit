@@ -69,15 +69,14 @@ BVH<NO>::BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes )
     using ExecutionSpace = typename DeviceType::execution_space;
 
     // determine the bounding box of the scene
-    Details::TreeConstruction<NO> tree_construction;
-    tree_construction.calculateBoundingBoxOfTheScene(
+    Details::TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
         bounding_boxes, internal_nodes[0].bounding_box );
 
     // calculate morton code of all objects
     int const n = bounding_boxes.extent( 0 );
     Kokkos::View<unsigned int *, DeviceType> morton_indices( "morton", n );
-    tree_construction.assignMortonCodes( bounding_boxes, morton_indices,
-                                         internal_nodes[0].bounding_box );
+    Details::TreeConstruction<NO>::assignMortonCodes(
+        bounding_boxes, morton_indices, internal_nodes[0].bounding_box );
 
     // sort them along the Z-order space-filling curve
     Functor::SetIndices<NO> set_indices_functor( indices );
@@ -85,7 +84,7 @@ BVH<NO>::BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes )
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_indices_functor );
     Kokkos::fence();
-    tree_construction.sortObjects( morton_indices, indices );
+    Details::TreeConstruction<NO>::sortObjects( morton_indices, indices );
 
     // generate bounding volume hierarchy
     Functor::SetBoundingBoxes<NO> set_bounding_boxes_functor(
@@ -94,12 +93,13 @@ BVH<NO>::BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes )
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_bounding_boxes_functor );
     Kokkos::fence();
-    tree_construction.generateHierarchy( morton_indices, leaf_nodes,
-                                         internal_nodes );
+    Details::TreeConstruction<NO>::generateHierarchy(
+        morton_indices, leaf_nodes, internal_nodes );
 
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
-    tree_construction.calculateBoundingBoxes( leaf_nodes, internal_nodes );
+    Details::TreeConstruction<NO>::calculateBoundingBoxes( leaf_nodes,
+                                                           internal_nodes );
 }
 
 // template <typename SC, typename LO, typename GO, typename NO>

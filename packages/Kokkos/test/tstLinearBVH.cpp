@@ -47,6 +47,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, tag_dispatching, NO )
     Kokkos::parallel_for( "file_boxes_functor",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           fill_boxes_functor );
+    Kokkos::fence();
 
     DataTransferKit::BVH<NO> bvh( boxes );
     Kokkos::View<int *, DeviceType> results;
@@ -261,6 +262,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
     Kokkos::parallel_for( "fill_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, nx ),
                           fill_bounding_boxes );
+    Kokkos::fence();
 
     DataTransferKit::BVH<NO> bvh( bounding_boxes );
 
@@ -272,6 +274,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
     Kokkos::parallel_for( "check_identity",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           check_identity );
+    Kokkos::fence();
 
     auto identity_host = Kokkos::create_mirror_view( identity );
     Kokkos::deep_copy( identity_host, identity );
@@ -368,6 +371,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
     Kokkos::parallel_for( "check_first_neighbor",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, nx ),
                           check_first_neighbor );
+    Kokkos::fence();
 
     auto first_neighbor_host = Kokkos::create_mirror_view( first_neighbor );
     Kokkos::deep_copy( first_neighbor_host, first_neighbor );
@@ -429,6 +433,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, structured_grid, NO )
     Kokkos::parallel_for( "check_random",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, nn ),
                           check_random );
+    Kokkos::fence();
     auto random_host = Kokkos::create_mirror_view( random );
     Kokkos::deep_copy( random_host, random );
 
@@ -666,6 +671,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
     Kokkos::parallel_for( "random_within",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n_points ),
                           random_within_lambda );
+    Kokkos::fence();
 
     auto within_n_pts_host = Kokkos::create_mirror_view( within_n_pts );
     Kokkos::deep_copy( within_n_pts_host, within_n_pts_host );
