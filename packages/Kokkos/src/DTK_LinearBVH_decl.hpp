@@ -14,23 +14,25 @@
 
 namespace DataTransferKit
 {
-
-// Bounding Volume Hierarchy.
+/**
+ * Bounding Volume Hierarchy.
+ */
 template <typename NO>
-class BVH
+struct BVH
 {
   public:
     using DeviceType = typename NO::device_type;
-
-    BVH();
 
     BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes );
 
     Kokkos::View<Node *, DeviceType> leaf_nodes;
     Kokkos::View<Node *, DeviceType> internal_nodes;
-    // Array of indices that sort the boxes used to construct the hierarchy.
-    // The leaf nodes are ordered so we need these to identify objects that meet
-    // a predicate.
+    /**
+     *  Array of indices that sort the boxes used to construct the hierarchy.
+     *  The leaf nodes are ordered so we need these to identify objects that
+     * meet
+     *  a predicate.
+     */
     Kokkos::View<int *, DeviceType> indices;
 };
 

@@ -6,9 +6,11 @@
 
 namespace DataTransferKit
 {
-// Axis-Aligned Bounding Box
-// This is just a thin wrapper around an array of size 2x spatial dimension with
-// a default constructor to initialize properly an "empty" box.
+/**
+ * Axis-Aligned Bounding Box. This is just a thin wrapper around an array of
+ * size 2x spatial dimension with a default constructor to initialize
+ * properly an "empty" box.
+ */
 struct BBox
 {
     using ArrayType = double[6]; // Kokkos::Array<double, 6>;
