@@ -13,6 +13,10 @@ namespace DataTransferKit
 {
 namespace Details
 {
+/**
+ * This structure contains all the functions used to build the BVH. All the
+ * functions are static.
+ */
 template <typename NO>
 struct TreeConstruction
 {
@@ -68,7 +72,10 @@ struct TreeConstruction
     findSplit( Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes,
                int first, int last );
 
-    // branchless sign function
+    /**
+     * Branchless sign function. Return 1 if @param x is greater than zero, 0 if
+     * @param x is zero, and -1 if @param is less than zero.
+     */
     // QUESTION: do we want to add it to DTK helpers?
     KOKKOS_INLINE_FUNCTION
     static int sgn( int x ) { return ( x > 0 ) - ( x < 0 ); }

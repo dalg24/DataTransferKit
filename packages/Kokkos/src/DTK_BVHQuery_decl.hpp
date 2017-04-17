@@ -12,14 +12,25 @@ class BVHQuery
 {
   public:
     using DeviceType = typename NO::device_type;
+    /**
+     * Fill @param out with the indices of the leaf nodes that satisfy the
+     * Nearest predicate.
+     */
     static int query( BVH<NO> const bvh, Details::Nearest const &predicates,
                       Kokkos::View<int *, DeviceType> out );
 
+    /**
+     * Fill @param out with the indices of the leaf nodes that satisfy the
+     * Within predicate.
+     */
     static int query( BVH<NO> const bvh, Details::Within const &predicates,
                       Kokkos::View<int *, DeviceType> out );
 
     // COMMENT: could also check that pointer is in the range [leaf_nodes,
     // leaf_nodes+n]
+    /**
+     * Return true if the node is a leaf.
+     */
     KOKKOS_INLINE_FUNCTION
     static bool isLeaf( Node const *node )
     {
@@ -27,12 +38,18 @@ class BVHQuery
                ( node->children_b == nullptr );
     }
 
+    /**
+     * Return the index of the leaf node.
+     */
     KOKKOS_INLINE_FUNCTION
     static int getIndex( BVH<NO> bvh, Node const *leaf )
     {
         return bvh.indices[leaf - bvh.leaf_nodes.data()];
     }
 
+    /**
+     * Return the root node of the BVH.
+     */
     KOKKOS_INLINE_FUNCTION
     static Node const *getRoot( BVH<NO> bvh )
     {
