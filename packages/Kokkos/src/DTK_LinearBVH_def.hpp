@@ -61,7 +61,7 @@ class SetBoundingBoxes
 }
 
 template <typename NO>
-BVH<NO>::BVH( Kokkos::View<BBox *, DeviceType> bounding_boxes )
+BVH<NO>::BVH( Kokkos::View<BBox const *, DeviceType> bounding_boxes )
     : leaf_nodes( "leaf_nodes", bounding_boxes.extent( 0 ) )
     , internal_nodes( "internal_nodes", bounding_boxes.extent( 0 ) - 1 )
     , indices( "sorted_indices", bounding_boxes.extent( 0 ) )
