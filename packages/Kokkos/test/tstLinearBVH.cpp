@@ -605,6 +605,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
             x, x, y, y, z, z,
         };
     }
+
     Kokkos::deep_copy( bounding_boxes, bounding_boxes_host );
 
     DataTransferKit::BVH<NO> bvh( bounding_boxes );
@@ -616,7 +617,9 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
     using ExecutionSpace = typename DeviceType::execution_space;
     Kokkos::View<double * [3], ExecutionSpace> point_coords( "point_coords",
                                                              n_points );
+    auto point_coords_host = Kokkos::create_mirror_view( point_coords );
     Kokkos::View<double *, ExecutionSpace> radii( "radii", n_points );
+    auto radii_host = Kokkos::create_mirror_view( radii );
     Kokkos::View<int * [2], ExecutionSpace> within_n_pts( "within_n_pts",
                                                           n_points );
     Kokkos::View<int * [2], ExecutionSpace> nearest_n_pts( "nearest_n_pts",
@@ -640,18 +643,18 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         double y = std::get<1>( point );
         double z = std::get<2>( point );
         BPoint centroid( x, y, z );
-        radii[i] = distribution_radius( generator );
+        radii_host[i] = distribution_radius( generator );
         k[i] = distribution_k( generator );
-        double radius = radii[i];
+        double radius = radii_host[i];
 
         // COMMENT: Did not implement proper radius search yet
         // This use available tree traversal for axis-aligned bounding box and
         // filters out candidates afterwards.
         // The coordinates of the points in the structured cloud (source) are
         // accessed directly and we use Boost to compute the distance.
-        point_coords( i, 0 ) = x;
-        point_coords( i, 1 ) = y;
-        point_coords( i, 2 ) = z;
+        point_coords_host( i, 0 ) = x;
+        point_coords_host( i, 1 ) = y;
+        point_coords_host( i, 2 ) = z;
 
         // use the R-tree to obtain a reference solution
         rtree.query( bgi::satisfies( [centroid, radius](
@@ -664,6 +667,9 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         rtree.query( bgi::nearest( BPoint( x, y, z ), k[i] ),
                      std::back_inserter( returned_values_nearest[i] ) );
     }
+
+    Kokkos::deep_copy( point_coords, point_coords_host );
+    Kokkos::deep_copy( radii, radii_host );
 
     RandomWithinLambda<NO> random_within_lambda( point_coords, radii,
                                                  within_n_pts, bvh );
@@ -679,13 +685,14 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
     for ( int i = 0; i < n_points; ++i )
     {
         auto const &ref = returned_values_within[i];
-        TEST_EQUALITY( within_n_pts( i, 0 ), static_cast<int>( ref.size() ) );
+        TEST_EQUALITY( within_n_pts_host( i, 0 ),
+                       static_cast<int>( ref.size() ) );
         std::set<int> ref_ids;
         for ( auto const &id : ref )
             ref_ids.emplace( id.second );
 
         if ( ref.size() > 0 )
-            TEST_EQUALITY( ref_ids.count( within_n_pts( i, 1 ) ), 1 );
+            TEST_EQUALITY( ref_ids.count( within_n_pts_host( i, 1 ) ), 1 );
     }
 
 #ifndef KOKKOS_ENABLE_CUDA
