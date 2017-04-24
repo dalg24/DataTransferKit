@@ -1,3 +1,4 @@
+#include <DTK_KokkosHelpers.hpp>
 #include <DTK_TreeConstruction.hpp>
 #include <details/DTK_DetailsAlgorithms.hpp>
 
@@ -79,23 +80,6 @@ class FillK
     Kokkos::View<unsigned int *, DeviceType> _k;
 };
 
-template <typename DeviceType>
-class FillIDs
-{
-  public:
-    KOKKOS_INLINE_FUNCTION
-    FillIDs( Kokkos::View<int *, DeviceType> ids )
-        : _ids( ids )
-    {
-    }
-
-    KOKKOS_INLINE_FUNCTION
-    void operator()( int const i ) const { _ids[i] = i; }
-
-  private:
-    Kokkos::View<int *, DeviceType> _ids;
-};
-
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, indirect_sort, NO )
 {
     // need a functionality that sort objects based on their Morton code and
@@ -116,7 +100,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, indirect_sort, NO )
     std::vector<int> ref = {3, 2, 1, 0};
     // distribute ids to unsorted objects
     Kokkos::View<int *, DeviceType> ids( "ids", n );
-    FillIDs<DeviceType> fill_ids_functor( ids );
+    DataTransferKit::Iota<DeviceType> fill_ids_functor( ids );
     Kokkos::parallel_for( "fill_ids",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           fill_ids_functor );
