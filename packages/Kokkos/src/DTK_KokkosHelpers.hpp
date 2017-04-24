@@ -67,6 +67,40 @@ class KokkosHelpers
     {
         return ( left < right ) ? left : right;
     }
+
+    /**
+     * Branchless sign function. Return 1 if @param x is greater than zero, 0 if
+     * @param x is zero, and -1 if @param is less than zero.
+     */
+    KOKKOS_INLINE_FUNCTION
+    static int sgn( int x ) { return ( x > 0 ) - ( x < 0 ); }
+};
+
+/**
+ * This functor is similar to std::iota.
+ */
+template <typename NO, typename SC = int>
+class Iota
+{
+  public:
+    using DeviceType = typename NO::device_type;
+
+    Iota( Kokkos::View<SC *, DeviceType> indices,
+          SC offset = static_cast<SC>( 0 ) )
+        : _indices( indices )
+        , _offset( offset )
+    {
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator()( int const i ) const
+    {
+        _indices[i] = static_cast<SC>( i ) + _offset;
+    }
+
+  private:
+    Kokkos::View<SC *, DeviceType> _indices;
+    SC _offset;
 };
 
 //---------------------------------------------------------------------------//

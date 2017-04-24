@@ -1,6 +1,7 @@
 #ifndef DTK_LINEARBVH_DEF_HPP
 #define DTK_LINEARBVH_DEF_HPP
 
+#include <DTK_KokkosHelpers.hpp>
 #include <DTK_TreeConstruction.hpp>
 #include <details/DTK_DetailsAlgorithms.hpp>
 #include <details/DTK_DetailsTreeTraversal.hpp>
@@ -12,25 +13,6 @@ namespace DataTransferKit
 {
 namespace Functor
 {
-template <typename NO>
-class SetIndices
-{
-  public:
-    using DeviceType = typename NO::device_type;
-    using ExecutionSpace = typename DeviceType::execution_space;
-
-    SetIndices( Kokkos::View<int *, DeviceType> indices )
-        : _indices( indices )
-    {
-    }
-
-    KOKKOS_INLINE_FUNCTION
-    void operator()( int const i ) const { _indices[i] = i; }
-
-  private:
-    Kokkos::View<int *, DeviceType> _indices;
-};
-
 template <typename NO>
 class SetBoundingBoxes
 {
@@ -79,10 +61,10 @@ BVH<NO>::BVH( Kokkos::View<BBox const *, DeviceType> bounding_boxes )
         bounding_boxes, morton_indices, internal_nodes[0].bounding_box );
 
     // sort them along the Z-order space-filling curve
-    Functor::SetIndices<NO> set_indices_functor( indices );
+    Iota<NO> iota_functor( indices );
     Kokkos::parallel_for( "set_indices",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
-                          set_indices_functor );
+                          iota_functor );
     Kokkos::fence();
     Details::TreeConstruction<NO>::sortObjects( morton_indices, indices );
 

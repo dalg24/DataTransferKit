@@ -311,8 +311,9 @@ Kokkos::pair<int, int> TreeConstruction<NO>::determineRange(
     Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n, int i )
 {
     // determine direction of the range (+1 or -1)
-    int direction = sgn( commonPrefix( sorted_morton_codes, n, i, i + 1 ) -
-                         commonPrefix( sorted_morton_codes, n, i, i - 1 ) );
+    int direction =
+        KokkosHelpers::sgn( commonPrefix( sorted_morton_codes, n, i, i + 1 ) -
+                            commonPrefix( sorted_morton_codes, n, i, i - 1 ) );
     assert( direction == +1 || direction == -1 );
     // compute upper bound for the length of the range
     int max_step = 2;
