@@ -95,7 +95,8 @@ KOKKOS_FUNCTION void spatial_query( BVH<NO> const bvh,
         }
         else
         {
-            for ( Node const *child : {node->children_a, node->children_b} )
+            for ( Node const *child :
+                  {node->children.first, node->children.second} )
             {
                 if ( predicate( child ) )
                     *stack_ptr++ = child; // Push
@@ -163,7 +164,8 @@ KOKKOS_FUNCTION void nearest_query( BVH<NO> const bvh, Point const &query_point,
         else
         {
             // insert children of the node in the priority list
-            for ( Node const *child : {node->children_a, node->children_b} )
+            for ( Node const *child :
+                  {node->children.first, node->children.second} )
             {
                 double child_distance =
                     distance( query_point, child->bounding_box );

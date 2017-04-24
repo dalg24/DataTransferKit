@@ -34,8 +34,8 @@ class BVHQuery
     KOKKOS_INLINE_FUNCTION
     static bool isLeaf( Node const *node )
     {
-        return ( node->children_a == nullptr ) &&
-               ( node->children_b == nullptr );
+        return ( node->children.first == nullptr ) &&
+               ( node->children.second == nullptr );
     }
 
     /**

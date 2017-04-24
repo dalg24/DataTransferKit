@@ -100,8 +100,8 @@ class GenerateHierarchy
 
         // Record parent-child relationships.
 
-        _internal_nodes[i].children_a = childA;
-        _internal_nodes[i].children_b = childB;
+        _internal_nodes[i].children.first = childA;
+        _internal_nodes[i].children.second = childB;
         childA->parent = &_internal_nodes[i];
         childB->parent = &_internal_nodes[i];
     }
@@ -151,7 +151,7 @@ class CalculateBoundingBoxes
             if ( Kokkos::atomic_compare_exchange_strong(
                      &_ready_flags[node - _root], 0, 1 ) )
                 break;
-            for ( Node *child : {node->children_a, node->children_b} )
+            for ( Node *child : {node->children.first, node->children.second} )
                 Details::expand( node->bounding_box, child->bounding_box );
             node = node->parent;
         }
