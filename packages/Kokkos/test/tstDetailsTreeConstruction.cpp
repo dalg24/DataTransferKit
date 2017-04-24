@@ -301,7 +301,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, example_tree_construction, NO )
         {
             os << "I" << node - internal_nodes.data();
             for ( DataTransferKit::Node *child :
-                  {node->children_a, node->children_b} )
+                  {node->children.first, node->children.second} )
                 traverseRecursive( child, os );
         }
     };
