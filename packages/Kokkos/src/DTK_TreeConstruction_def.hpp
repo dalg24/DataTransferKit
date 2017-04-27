@@ -338,8 +338,7 @@ Kokkos::pair<int, int> TreeConstruction<NO>::determineRange(
     } while ( step > 1 );
     int j = i + split * direction;
 
-    return {DataTransferKit::KokkosHelpers::min( i, j ),
-            DataTransferKit::KokkosHelpers::max( i, j )};
+    return {KokkosHelpers::min( i, j ), KokkosHelpers::max( i, j )};
 }
 }
 }
