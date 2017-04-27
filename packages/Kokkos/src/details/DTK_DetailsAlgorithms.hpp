@@ -93,9 +93,9 @@ unsigned int expandBits( unsigned int v )
 KOKKOS_INLINE_FUNCTION
 unsigned int morton3D( double x, double y, double z )
 {
-    x = KokkosHelpers::min( max( x * 1024.0, 0.0 ), 1023.0 );
-    y = KokkosHelpers::min( max( y * 1024.0, 0.0 ), 1023.0 );
-    z = KokkosHelpers::min( max( z * 1024.0, 0.0 ), 1023.0 );
+    x = KokkosHelpers::min( KokkosHelpers::max( x * 1024.0, 0.0 ), 1023.0 );
+    y = KokkosHelpers::min( KokkosHelpers::max( y * 1024.0, 0.0 ), 1023.0 );
+    z = KokkosHelpers::min( KokkosHelpers::max( z * 1024.0, 0.0 ), 1023.0 );
     unsigned int xx = expandBits( (unsigned int)x );
     unsigned int yy = expandBits( (unsigned int)y );
     unsigned int zz = expandBits( (unsigned int)z );
