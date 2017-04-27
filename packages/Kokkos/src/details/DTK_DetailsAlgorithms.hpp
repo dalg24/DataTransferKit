@@ -152,13 +152,12 @@ int countLeadingZeros( unsigned int x )
 #endif
 }
 
-namespace Functor
-{
 template <typename DeviceType>
-class ExpandBoxWithBox
+class ExpandBoxWithBoxFunctor
 {
   public:
-    ExpandBoxWithBox( Kokkos::View<BBox const *, DeviceType> bounding_boxes )
+    ExpandBoxWithBoxFunctor(
+        Kokkos::View<BBox const *, DeviceType> bounding_boxes )
         : _greatest( Kokkos::ArithTraits<double>::max() )
         , _lowest( -_greatest )
         , _bounding_boxes( bounding_boxes )
@@ -203,7 +202,6 @@ class ExpandBoxWithBox
     double const _lowest;
     Kokkos::View<BBox const *, DeviceType> _bounding_boxes;
 };
-}
 
 } // end namespace Details
 } // end namespace DataTransferKit

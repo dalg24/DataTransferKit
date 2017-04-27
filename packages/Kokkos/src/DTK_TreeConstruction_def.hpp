@@ -12,15 +12,14 @@ namespace DataTransferKit
 {
 namespace Details
 {
-namespace Functor
-{
 template <typename DeviceType>
-class AssignMortonCodes
+class AssignMortonCodesFunctor
 {
   public:
-    AssignMortonCodes( Kokkos::View<BBox const *, DeviceType> bounding_boxes,
-                       Kokkos::View<unsigned int *, DeviceType> morton_codes,
-                       BBox const &scene_bounding_box )
+    AssignMortonCodesFunctor(
+        Kokkos::View<BBox const *, DeviceType> bounding_boxes,
+        Kokkos::View<unsigned int *, DeviceType> morton_codes,
+        BBox const &scene_bounding_box )
         : _bounding_boxes( bounding_boxes )
         , _morton_codes( morton_codes )
         , _scene_bounding_box( scene_bounding_box )
@@ -50,11 +49,11 @@ class AssignMortonCodes
 };
 
 template <typename NO>
-class GenerateHierarchy
+class GenerateHierarchyFunctor
 {
   public:
     using DeviceType = typename NO::device_type;
-    GenerateHierarchy(
+    GenerateHierarchyFunctor(
         Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes,
         Kokkos::View<Node *, DeviceType> leaf_nodes,
         Kokkos::View<Node *, DeviceType> internal_nodes )
@@ -114,10 +113,10 @@ class GenerateHierarchy
 };
 
 template <typename DeviceType>
-class FillReadyFlags
+class FillReadyFlagsFunctor
 {
   public:
-    FillReadyFlags( Kokkos::View<int *, DeviceType> ready_flags )
+    FillReadyFlagsFunctor( Kokkos::View<int *, DeviceType> ready_flags )
         : _ready_flags( ready_flags )
     {
     }
@@ -130,12 +129,12 @@ class FillReadyFlags
 };
 
 template <typename DeviceType>
-class CalculateBoundingBoxes
+class CalculateBoundingBoxesFunctor
 {
   public:
-    CalculateBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                            Node *root,
-                            Kokkos::View<int *, DeviceType> ready_flags )
+    CalculateBoundingBoxesFunctor( Kokkos::View<Node *, DeviceType> leaf_nodes,
+                                   Node *root,
+                                   Kokkos::View<int *, DeviceType> ready_flags )
         : _leaf_nodes( leaf_nodes )
         , _root( root )
         , _ready_flags( ready_flags )
@@ -165,7 +164,6 @@ class CalculateBoundingBoxes
     Node *_root;
     Kokkos::View<int *, DeviceType> _ready_flags;
 };
-}
 
 template <typename NO>
 void TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
@@ -173,7 +171,7 @@ void TreeConstruction<NO>::calculateBoundingBoxOfTheScene(
     BBox &scene_bounding_box )
 {
     int const n = bounding_boxes.extent( 0 );
-    Details::Functor::ExpandBoxWithBox<DeviceType> functor( bounding_boxes );
+    Details::ExpandBoxWithBoxFunctor<DeviceType> functor( bounding_boxes );
     Kokkos::parallel_reduce( "calculate_bouding_of_the_scene",
                              Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                              functor, scene_bounding_box );
@@ -187,8 +185,8 @@ void TreeConstruction<NO>::assignMortonCodes(
     BBox const &scene_bounding_box )
 {
     int const n = morton_codes.extent( 0 );
-    Functor::AssignMortonCodes<DeviceType> functor(
-        bounding_boxes, morton_codes, scene_bounding_box );
+    AssignMortonCodesFunctor<DeviceType> functor( bounding_boxes, morton_codes,
+                                                  scene_bounding_box );
     Kokkos::parallel_for( "assign_morton_codes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           functor );
@@ -228,8 +226,8 @@ Node *TreeConstruction<NO>::generateHierarchy(
     Kokkos::View<Node *, DeviceType> leaf_nodes,
     Kokkos::View<Node *, DeviceType> internal_nodes )
 {
-    Functor::GenerateHierarchy<NO> functor( sorted_morton_codes, leaf_nodes,
-                                            internal_nodes );
+    GenerateHierarchyFunctor<NO> functor( sorted_morton_codes, leaf_nodes,
+                                          internal_nodes );
 
     int const n = sorted_morton_codes.extent( 0 );
     Kokkos::parallel_for( "generate_hierarchy",
@@ -250,15 +248,15 @@ void TreeConstruction<NO>::calculateBoundingBoxes(
 
     // Use int instead of bool because CAS on CUDA does not support boolean
     Kokkos::View<int *, DeviceType> ready_flags( "ready_flags", n - 1 );
-    Functor::FillReadyFlags<DeviceType> fill_functor( ready_flags );
+    FillReadyFlagsFunctor<DeviceType> fill_functor( ready_flags );
     Kokkos::parallel_for( "fill_ready_flags",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n - 1 ),
                           fill_functor );
 
     Node *root = &internal_nodes[0];
 
-    Functor::CalculateBoundingBoxes<DeviceType> calc_functor( leaf_nodes, root,
-                                                              ready_flags );
+    CalculateBoundingBoxesFunctor<DeviceType> calc_functor( leaf_nodes, root,
+                                                            ready_flags );
     Kokkos::parallel_for( "calculate_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           calc_functor );

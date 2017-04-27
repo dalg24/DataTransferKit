@@ -11,18 +11,17 @@
 
 namespace DataTransferKit
 {
-namespace Functor
-{
 template <typename NO>
-class SetBoundingBoxes
+class SetBoundingBoxesFunctor
 {
   public:
     using DeviceType = typename NO::device_type;
     using ExecutionSpace = typename DeviceType::execution_space;
 
-    SetBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                      Kokkos::View<int *, DeviceType> indices,
-                      Kokkos::View<BBox const *, DeviceType> bounding_boxes )
+    SetBoundingBoxesFunctor(
+        Kokkos::View<Node *, DeviceType> leaf_nodes,
+        Kokkos::View<int *, DeviceType> indices,
+        Kokkos::View<BBox const *, DeviceType> bounding_boxes )
         : _leaf_nodes( leaf_nodes )
         , _indices( indices )
         , _bounding_boxes( bounding_boxes )
@@ -40,7 +39,6 @@ class SetBoundingBoxes
     Kokkos::View<int *, DeviceType> _indices;
     Kokkos::View<BBox const *, DeviceType> _bounding_boxes;
 };
-}
 
 template <typename NO>
 BVH<NO>::BVH( Kokkos::View<BBox const *, DeviceType> bounding_boxes )
@@ -69,8 +67,8 @@ BVH<NO>::BVH( Kokkos::View<BBox const *, DeviceType> bounding_boxes )
     Details::TreeConstruction<NO>::sortObjects( morton_indices, indices );
 
     // generate bounding volume hierarchy
-    Functor::SetBoundingBoxes<NO> set_bounding_boxes_functor(
-        leaf_nodes, indices, bounding_boxes );
+    SetBoundingBoxesFunctor<NO> set_bounding_boxes_functor( leaf_nodes, indices,
+                                                            bounding_boxes );
     Kokkos::parallel_for( "set_bounding_boxes",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           set_bounding_boxes_functor );
