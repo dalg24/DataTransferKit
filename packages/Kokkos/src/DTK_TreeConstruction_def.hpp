@@ -36,7 +36,7 @@ class AssignMortonCodes
         {
             a = _scene_bounding_box[2 * d];
             b = _scene_bounding_box[2 * d + 1];
-            xyz[d] = ( xyz[d] - a ) / ( b - a );
+            xyz[d] = ( a != b ? ( xyz[d] - a ) / ( b - a ) : 0 );
         }
         _morton_codes[i] = Details::morton3D( xyz[0], xyz[1], xyz[2] );
     }
