@@ -50,21 +50,23 @@ struct TreeConstruction
                             Kokkos::View<Node *, DeviceType> internal_nodes );
 
     KOKKOS_INLINE_FUNCTION
-    static int commonPrefix( Kokkos::View<unsigned int *, DeviceType> k, int n,
-                             int i, int j )
+    static int
+    commonPrefix( Kokkos::View<unsigned int *, DeviceType> morton_codes, int i,
+                  int j )
     {
+        int const n = morton_codes.extent( 0 );
         if ( j < 0 || j > n - 1 )
             return -1;
+
         // our construction algorithm relies on keys being unique so we handle
-        // explicitly case of duplicate Morton codes by augmenting each key by a
-        // bit
-        // representation of its index.
-        if ( k[i] == k[j] )
+        // explicitly case of duplicate Morton codes by augmenting each key by
+        // a bit representation of its index.
+        if ( morton_codes[i] == morton_codes[j] )
         {
             // countLeadingZeros( k[i] ^ k[j] ) == 32
             return 32 + Details::countLeadingZeros( i ^ j );
         }
-        return Details::countLeadingZeros( k[i] ^ k[j] );
+        return Details::countLeadingZeros( morton_codes[i] ^ morton_codes[j] );
     }
 
     KOKKOS_FUNCTION
@@ -74,8 +76,7 @@ struct TreeConstruction
 
     KOKKOS_FUNCTION
     static Kokkos::pair<int, int> determineRange(
-        Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int n,
-        int i );
+        Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes, int i );
 };
 }
 }

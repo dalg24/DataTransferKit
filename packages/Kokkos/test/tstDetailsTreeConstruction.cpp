@@ -180,7 +180,6 @@ class ComputeResults
                     Kokkos::View<int *, DeviceType> results, int n )
         : _fi( fi )
         , _results( results )
-        , _n( n )
     {
     }
 
@@ -192,13 +191,12 @@ class ComputeResults
 
         _results[i] =
             DataTransferKit::Details::TreeConstruction<NO>::commonPrefix(
-                _fi, _n, index_1[i], index_2[i] );
+                _fi, index_1[i], index_2[i] );
     }
 
   private:
     Kokkos::View<unsigned int *, DeviceType> _fi;
     Kokkos::View<int *, DeviceType> _results;
-    int _n;
 };
 
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, common_prefix, NO )
