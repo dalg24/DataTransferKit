@@ -6,6 +6,8 @@
 #include <Kokkos_Atomic.hpp>
 #include <Kokkos_Sort.hpp>
 
+#include <cassert>
+
 namespace DataTransferKit
 {
 namespace Details
