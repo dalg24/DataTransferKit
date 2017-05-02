@@ -209,6 +209,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, common_prefix, NO )
     Kokkos::parallel_for( "fill_fi",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
                           fill_fi_functor );
+    Kokkos::fence();
 
     int const n_tests = 10;
     Kokkos::View<int *, DeviceType> results( "results", n_tests );
@@ -217,6 +218,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( DetailsBVH, common_prefix, NO )
     Kokkos::parallel_for( "compute_results",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n_tests ),
                           compute_results_functor );
+    Kokkos::fence();
 
     auto results_host = Kokkos::create_mirror_view( results );
     Kokkos::deep_copy( results_host, results );

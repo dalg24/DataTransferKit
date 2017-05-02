@@ -625,6 +625,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
     Kokkos::View<int * [2], ExecutionSpace> nearest_n_pts( "nearest_n_pts",
                                                            n_points );
     Kokkos::View<int *, ExecutionSpace> k( "distribution_k", n_points );
+    auto k_host = Kokkos::create_mirror_view( k );
     std::vector<std::vector<std::pair<BPoint, int>>> returned_values_within(
         n_points );
     std::vector<std::vector<std::pair<BPoint, int>>> returned_values_nearest(
@@ -644,7 +645,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
         double z = std::get<2>( point );
         BPoint centroid( x, y, z );
         radii_host[i] = distribution_radius( generator );
-        k[i] = distribution_k( generator );
+        k_host[i] = distribution_k( generator );
         double radius = radii_host[i];
 
         // COMMENT: Did not implement proper radius search yet
@@ -664,12 +665,13 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
                      std::back_inserter( returned_values_within[i] ) );
 
         // k nearest neighbors
-        rtree.query( bgi::nearest( BPoint( x, y, z ), k[i] ),
+        rtree.query( bgi::nearest( BPoint( x, y, z ), k_host[i] ),
                      std::back_inserter( returned_values_nearest[i] ) );
     }
 
     Kokkos::deep_copy( point_coords, point_coords_host );
     Kokkos::deep_copy( radii, radii_host );
+    Kokkos::deep_copy( k, k_host );
 
     RandomWithinLambda<NO> random_within_lambda( point_coords, radii,
                                                  within_n_pts, bvh );
@@ -680,7 +682,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
     Kokkos::fence();
 
     auto within_n_pts_host = Kokkos::create_mirror_view( within_n_pts );
-    Kokkos::deep_copy( within_n_pts_host, within_n_pts_host );
+    Kokkos::deep_copy( within_n_pts_host, within_n_pts );
 
     for ( int i = 0; i < n_points; ++i )
     {
@@ -702,6 +704,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, rtree, NO )
     Kokkos::parallel_for( "random_nearest",
                           Kokkos::RangePolicy<ExecutionSpace>( 0, n_points ),
                           random_nearest_lambda );
+    Kokkos::fence();
 
     for ( int i = 0; i < n_points; ++i )
     {

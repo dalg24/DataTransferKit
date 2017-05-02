@@ -36,7 +36,7 @@ class Within
   public:
     using Tag = SpatialPredicateTag;
     KOKKOS_INLINE_FUNCTION
-    Within( Point const &query_point, double const radius )
+    Within( Point const query_point, double const radius )
         : _query_point( query_point )
         , _radius( radius )
     {
@@ -50,7 +50,7 @@ class Within
     }
 
   private:
-    Point const &_query_point;
+    Point const _query_point;
     double const _radius;
 };
 
