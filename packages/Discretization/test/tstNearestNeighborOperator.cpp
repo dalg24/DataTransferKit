@@ -11,6 +11,7 @@
 
 #include <DTK_DetailsDistributedSearchTreeImpl.hpp>
 #include <DTK_DistributedSearchTree.hpp>
+#include <DTK_NearestNeighborOperator.hpp>
 #include <Kokkos_Core.hpp>
 #include <Teuchos_DefaultComm.hpp>
 #include <Tpetra_CrsMatrix.hpp>
@@ -73,6 +74,45 @@ void copy_points_from_cloud( std::vector<std::array<double, 3>> const &cloud,
         for ( int d = 0; d < spatial_dim; ++d )
             points_host( i, d ) = cloud[i][d];
     Kokkos::deep_copy( points, points_host );
+}
+
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator,
+                                   find_me_a_better_name, NODE )
+{
+    using DeviceType = typename NODE::device_type;
+
+    Teuchos::RCP<const Teuchos::Comm<int>> comm =
+        Teuchos::DefaultComm<int>::getComm();
+    int const comm_size = comm->getSize();
+    int const comm_rank = comm->getRank();
+
+    // Build structured cloud of points for the source and random cloud for the
+    // target.
+    Kokkos::View<double **, DeviceType> source_points( "source" );
+    copy_points_from_cloud( make_stuctured_cloud( 1.0, 1.0, 1.0, 11, 11, 11 ),
+                            source_points );
+
+    Kokkos::View<double **, DeviceType> target_points( "target" );
+    copy_points_from_cloud( make_random_cloud( 1.0, 1.0, 1.0, 20 ),
+                            target_points );
+    DataTransferKit::NearestNeighborOperator<DeviceType> nnop(
+        comm, source_points, target_points );
+
+    Kokkos::View<double *, DeviceType> source_values( "in" );
+    Kokkos::View<double *, DeviceType> target_values( "out" );
+    // violate pre condition of apply
+    TEST_THROW( nnop.apply( source_values, target_values ),
+                DataTransferKit::DataTransferKitException );
+
+    Kokkos::realloc( target_values, target_points.extent( 0 ) );
+    Kokkos::realloc( source_values, source_points.extent( 0 ) );
+    nnop.apply( source_values, target_values );
+
+    // violate post condition at the end of setup
+    Kokkos::View<double **, DeviceType> no_source_points( "empty", 0 );
+    TEST_THROW( DataTransferKit::NearestNeighborOperator<DeviceType>(
+                    comm, no_source_points, target_points ),
+                DataTransferKit::DataTransferKitException );
 }
 
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator, hello_world, NODE )
@@ -254,6 +294,8 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( NearestNeighborOperator,             \
                                           hello_world, DeviceType##NODE )
 */
 #define UNIT_TEST_GROUP( NODE )                                                \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( NearestNeighborOperator,             \
+                                          find_me_a_better_name, NODE )        \
     TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( NearestNeighborOperator,             \
                                           hello_world, NODE )
 
