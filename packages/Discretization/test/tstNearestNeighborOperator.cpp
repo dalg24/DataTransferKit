@@ -145,6 +145,7 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator,
 
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator, hello_world, NODE )
 {
+    return;
     using DeviceType = typename NODE::device_type;
 
     Teuchos::RCP<const Teuchos::Comm<int>> comm =
