@@ -86,33 +86,61 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator,
     int const comm_size = comm->getSize();
     int const comm_rank = comm->getRank();
 
+    int const space_dim = 3;
+
     // Build structured cloud of points for the source and random cloud for the
     // target.
     Kokkos::View<double **, DeviceType> source_points( "source" );
-    copy_points_from_cloud( make_stuctured_cloud( 1.0, 1.0, 1.0, 11, 11, 11 ),
-                            source_points );
 
-    Kokkos::View<double **, DeviceType> target_points( "target" );
-    copy_points_from_cloud( make_random_cloud( 1.0, 1.0, 1.0, 20 ),
-                            target_points );
+    Kokkos::View<double **, DeviceType> target_points( "target", 1, space_dim );
+
+    TEST_THROW( DataTransferKit::NearestNeighborOperator<DeviceType>(
+                    comm, source_points, target_points ),
+                DataTransferKit::DataTransferKitException );
+
+    if ( comm_rank == 0 )
+    {
+        Kokkos::resize( source_points, 1, space_dim );
+        auto source_points_host = Kokkos::create_mirror_view( source_points );
+        for ( int d = 0; d < space_dim; ++d )
+            source_points_host( 0, d ) = (double)comm_size;
+        Kokkos::deep_copy( source_points, source_points_host );
+    }
+
+    auto target_points_host = Kokkos::create_mirror_view( target_points );
+    for ( int d = 0; d < space_dim; ++d )
+        target_points_host( 0, d ) = (double)comm_rank;
+    Kokkos::deep_copy( target_points, target_points_host );
+
+    // Shameless hack to help the distributed tree
+    DataTransferKit::DistributedSearchTreeImpl<DeviceType>::epsilon =
+        (double)comm_size;
+
     DataTransferKit::NearestNeighborOperator<DeviceType> nnop(
         comm, source_points, target_points );
 
     Kokkos::View<double *, DeviceType> source_values( "in" );
     Kokkos::View<double *, DeviceType> target_values( "out" );
+
     // violate pre condition of apply
     TEST_THROW( nnop.apply( source_values, target_values ),
                 DataTransferKit::DataTransferKitException );
 
     Kokkos::realloc( target_values, target_points.extent( 0 ) );
     Kokkos::realloc( source_values, source_points.extent( 0 ) );
+    if ( comm_rank == 0 )
+    {
+        auto source_values_host = Kokkos::create_mirror_view( source_values );
+        source_values_host( 0 ) = 255.;
+        Kokkos::deep_copy( source_values, source_values_host );
+    }
+
     nnop.apply( source_values, target_values );
 
-    // violate post condition at the end of setup
-    Kokkos::View<double **, DeviceType> no_source_points( "empty", 0 );
-    TEST_THROW( DataTransferKit::NearestNeighborOperator<DeviceType>(
-                    comm, no_source_points, target_points ),
-                DataTransferKit::DataTransferKitException );
+    auto target_values_host = Kokkos::create_mirror_view( target_values );
+    Kokkos::deep_copy( target_values_host, target_values );
+    std::vector<double> target_values_ref = {255.};
+    TEST_COMPARE_ARRAYS( target_values_host, target_values_ref );
 }
 
 TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator, hello_world, NODE )
