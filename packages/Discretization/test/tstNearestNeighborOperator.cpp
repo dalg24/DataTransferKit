@@ -24,7 +24,9 @@
 #include <vector>
 
 std::vector<std::array<double, 3>>
-make_stuctured_cloud( double Lx, double Ly, double Lz, int nx, int ny, int nz )
+makeStructuredCloud( double Lx, double Ly, double Lz, int nx, int ny, int nz,
+                     double offset_x = 0., double offset_y = 0.,
+                     double offset_z = 0. )
 {
     std::vector<std::array<double, 3>> cloud( nx * ny * nz );
     std::function<int( int, int, int )> ind = [nx, ny, nz]( int i, int j,
@@ -36,19 +38,19 @@ make_stuctured_cloud( double Lx, double Ly, double Lz, int nx, int ny, int nz )
         for ( int j = 0; j < ny; ++j )
             for ( int k = 0; k < nz; ++k )
             {
-                x = i * Lx / ( nx - 1 );
-                y = j * Ly / ( ny - 1 );
-                z = k * Lz / ( nz - 1 );
+                x = offset_x + i * Lx / ( nx - 1 );
+                y = offset_y + j * Ly / ( ny - 1 );
+                z = offset_z + k * Lz / ( nz - 1 );
                 cloud[ind( i, j, k )] = {{x, y, z}};
             }
     return cloud;
 }
 
-std::vector<std::array<double, 3>> make_random_cloud( double Lx, double Ly,
-                                                      double Lz, int n )
+std::vector<std::array<double, 3>>
+makeRandomCloud( double Lx, double Ly, double Lz, int n, double seed = 0. )
 {
     std::vector<std::array<double, 3>> cloud( n );
-    std::default_random_engine generator;
+    std::default_random_engine generator( seed );
     std::uniform_real_distribution<double> distribution_x( 0.0, Lz );
     std::uniform_real_distribution<double> distribution_y( 0.0, Ly );
     std::uniform_real_distribution<double> distribution_z( 0.0, Lz );
@@ -63,8 +65,8 @@ std::vector<std::array<double, 3>> make_random_cloud( double Lx, double Ly,
 }
 
 template <typename DeviceType>
-void copy_points_from_cloud( std::vector<std::array<double, 3>> const &cloud,
-                             Kokkos::View<double **, DeviceType> &points )
+void copyPointsFromCloud( std::vector<std::array<double, 3>> const &cloud,
+                          Kokkos::View<double **, DeviceType> &points )
 {
     int const n_points = cloud.size();
     int const spatial_dim = 3;
@@ -150,18 +152,16 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator, hello_world, NODE )
 
     Teuchos::RCP<const Teuchos::Comm<int>> comm =
         Teuchos::DefaultComm<int>::getComm();
-    int const comm_size = comm->getSize();
     int const comm_rank = comm->getRank();
 
     // Build structured cloud of points for the source and random cloud for the
     // target.
     Kokkos::View<double **, DeviceType> source_points( "source" );
-    copy_points_from_cloud( make_stuctured_cloud( 1.0, 1.0, 1.0, 11, 11, 11 ),
-                            source_points );
+    copyPointsFromCloud( makeStructuredCloud( 1.0, 1.0, 1.0, 11, 11, 11 ),
+                         source_points );
 
     Kokkos::View<double **, DeviceType> target_points( "target" );
-    copy_points_from_cloud( make_random_cloud( 1.0, 1.0, 1.0, 20 ),
-                            target_points );
+    copyPointsFromCloud( makeRandomCloud( 1.0, 1.0, 1.0, 20 ), target_points );
 
     int const n_source_points = source_points.extent( 0 );
     int const n_target_points = target_points.extent( 0 );
@@ -312,6 +312,213 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator, hello_world, NODE )
     matrix.fillComplete();
 }
 
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator, structured_clouds,
+                                   DeviceType )
+{
+    // The source is a structured cloud. The target is the same cloud but
+    // distributed differently among the processors.
+    Teuchos::RCP<Teuchos::Comm<int> const> comm =
+        Teuchos::DefaultComm<int>::getComm();
+    unsigned int const comm_size = comm->getSize();
+    unsigned int const comm_rank = comm->getRank();
+
+    // Build the structured cloud of points for the source and the target.
+    double const L_x = 2.;
+    double const L_y = 3.;
+    double const L_z = 5.;
+    unsigned int const n_x = 7;
+    unsigned int const n_y = 11;
+    unsigned int const n_z = 13;
+    double const source_offset_x = comm_rank * L_x;
+    double const source_offset_y = comm_rank * L_y;
+    double const source_offset_z = comm_rank * L_z;
+
+    Kokkos::View<double **, DeviceType> source_points( "source" );
+    copyPointsFromCloud<DeviceType>(
+        makeStructuredCloud( L_x, L_y, L_z, n_x, n_y, n_z, source_offset_x,
+                             source_offset_y, source_offset_z ),
+        source_points );
+
+    double const target_offset_x = ( ( comm_rank + 1 ) % comm_size ) * L_x;
+    double const target_offset_y = ( ( comm_rank + 1 ) % comm_size ) * L_y;
+    double const target_offset_z = ( ( comm_rank + 1 ) % comm_size ) * L_z;
+
+    Kokkos::View<double **, DeviceType> target_points( "target" );
+    copyPointsFromCloud<DeviceType>(
+        makeStructuredCloud( L_x, L_y, L_z, n_x, n_y, n_z, target_offset_x,
+                             target_offset_y, target_offset_z ),
+        target_points );
+
+    unsigned int const n_points = source_points.extent( 0 );
+    Kokkos::View<double *, DeviceType> target_values( "target_values",
+                                                      n_points );
+
+    DataTransferKit::NearestNeighborOperator<DeviceType> nnop(
+        comm, source_points, target_points );
+
+    // Wish I could use subview but Kokkos doesn't apply's interface
+    using ExecutionSpace = typename DeviceType::execution_space;
+    Kokkos::View<double *, DeviceType> source_values( "source_values",
+                                                      n_points );
+    Kokkos::parallel_for( "create_subview",
+                          Kokkos::RangePolicy<ExecutionSpace>( 0, n_points ),
+                          KOKKOS_LAMBDA( int i ) {
+                              source_values( i ) = source_points( i, 0 );
+                          } );
+    Kokkos::fence();
+
+    nnop.apply( source_values, target_values );
+
+    // Check results
+    auto target_values_host = Kokkos::create_mirror_view( target_values );
+    Kokkos::deep_copy( target_values_host, target_values );
+    auto target_points_host = Kokkos::create_mirror_view( target_points );
+    Kokkos::deep_copy( target_points_host, target_points );
+    double const tol = 1e-14;
+    for ( unsigned int i = 0; i < n_points; ++i )
+        TEUCHOS_ASSERT( std::abs( target_values_host( i ) -
+                                  target_points_host( i, 0 ) ) < tol );
+}
+
+void moveTargetPoints(
+    std::vector<std::array<double, 3>> const &structured_cloud,
+    double const L_x, double const L_y, double const L_z,
+    unsigned int const n_x, unsigned int const n_y, unsigned int const n_z,
+    double const offset_x, std::vector<std::array<double, 3>> &random_cloud,
+    std::vector<unsigned int> &closest_points )
+{
+    closest_points.clear();
+    double const half_x = L_x / ( 2 * n_x );
+    double const half_y = L_y / ( 2 * n_y );
+    double const half_z = L_z / ( 2 * n_z );
+
+    for ( auto &point : random_cloud )
+    {
+        double x = point[0];
+        double y = point[1];
+        double z = point[2];
+
+        // Move the point to the same domain covered by the structured cloud.
+        bool done = false;
+        while ( !done )
+        {
+            if ( x > L_x )
+                x -= L_x;
+            else
+                done = true;
+        }
+        x += offset_x;
+
+        // Find the closest point
+        auto distance = [=]( std::array<double, 3> point ) {
+            return std::sqrt( std::pow( point[0] - x, 2 ) +
+                              std::pow( point[1] - y, 2 ) +
+                              std::pow( point[2] - z, 2 ) );
+        };
+
+        double distance_min = std::numeric_limits<double>::max();
+        unsigned int const n_points = structured_cloud.size();
+        unsigned int source_point_index = 0;
+        for ( unsigned int i = 0; i < n_points; ++i )
+        {
+            double d = distance( structured_cloud[i] );
+            if ( d < distance_min )
+            {
+                distance_min = d;
+                source_point_index = i;
+            }
+        }
+
+        // Move the target point closer to the source point if necessary.
+        auto nearest_point = structured_cloud[source_point_index];
+        if ( std::abs( point[0] - nearest_point[0] ) >= half_x )
+            point[0] = nearest_point[0] + half_x / 2.;
+        if ( std::abs( point[1] - nearest_point[1] ) >= half_y )
+            point[1] = nearest_point[1] + half_y / 2.;
+        if ( std::abs( point[2] - nearest_point[2] ) >= half_z )
+            point[2] = nearest_point[2] + half_z / 2.;
+
+        closest_points.push_back( source_point_index );
+    }
+}
+
+TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( NearestNeighborOperator, mixed_clouds,
+                                   DeviceType )
+{
+    // The source is a structured cloud. The target is a random cloud.
+    Teuchos::RCP<Teuchos::Comm<int> const> comm =
+        Teuchos::DefaultComm<int>::getComm();
+    unsigned int const comm_size = comm->getSize();
+    unsigned int const comm_rank = comm->getRank();
+
+    // Build the structured cloud of points for the source.
+    unsigned int constexpr spacedim = 3;
+    double const L_x = 17.;
+    double const L_y = 19.;
+    double const L_z = 23.;
+    unsigned int const n_x = 29;
+    unsigned int const n_y = 31;
+    unsigned int const n_z = 37;
+    double const source_offset_x = comm_rank * L_x;
+    double const source_offset_y = 0;
+    double const source_offset_z = 0;
+
+    std::vector<std::array<double, spacedim>> structured_cloud =
+        makeStructuredCloud( L_x, L_y, L_z, n_x, n_y, n_z, source_offset_x,
+                             source_offset_y, source_offset_z );
+    Kokkos::View<double **, DeviceType> source_points( "source" );
+    copyPointsFromCloud<DeviceType>( structured_cloud, source_points );
+
+    // Build the random cloud of points for the target.
+    unsigned int const n_target_points = 41;
+    std::vector<std::array<double, spacedim>> random_cloud =
+        makeRandomCloud( comm_size * L_x, comm_size * L_y, comm_size * L_z,
+                         n_target_points, comm_rank );
+
+    // Move the points to always be close to only one points of the source.
+    std::vector<unsigned int> closest_points;
+    moveTargetPoints( structured_cloud, L_x, L_y, L_z, n_x, n_y, n_z,
+                      source_offset_x, random_cloud, closest_points );
+
+    Kokkos::View<double **, DeviceType> target_points( "target" );
+    copyPointsFromCloud<DeviceType>( random_cloud, target_points );
+
+    Kokkos::View<double *, DeviceType> target_values( "target_values",
+                                                      n_target_points );
+
+    // Shameless hack to help the distributed tree
+    DataTransferKit::DistributedSearchTreeImpl<DeviceType>::epsilon =
+        static_cast<double>( comm_size );
+
+    DataTransferKit::NearestNeighborOperator<DeviceType> nnop(
+        comm, source_points, target_points );
+
+    using ExecutionSpace = typename DeviceType::execution_space;
+    unsigned int const n_points = source_points.extent( 0 );
+    Kokkos::View<double *, DeviceType> source_values( "source_values",
+                                                      n_points );
+    Kokkos::parallel_for( "create_subview",
+                          Kokkos::RangePolicy<ExecutionSpace>( 0, n_points ),
+                          KOKKOS_LAMBDA( int i ) {
+                              source_values( i ) = source_points( i, 0 );
+                          } );
+    Kokkos::fence();
+
+    nnop.apply( source_values, target_values );
+
+    // Check results
+    auto target_values_host = Kokkos::create_mirror_view( target_values );
+    Kokkos::deep_copy( target_values_host, target_values );
+    double const tol = 1e-14;
+    for ( unsigned int i = 0; i < n_target_points; ++i )
+    {
+        double ref_value = structured_cloud[closest_points[i]][0];
+
+        TEUCHOS_ASSERT( std::abs( target_values_host( i, 0 ) - ref_value ) <
+                        tol );
+    }
+}
+
 // Include the test macros.
 #include "DataTransferKitDiscretization_ETIHelperMacros.h"
 
@@ -326,7 +533,12 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( NearestNeighborOperator,             \
     TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( NearestNeighborOperator,             \
                                           find_me_a_better_name, NODE )        \
     TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( NearestNeighborOperator,             \
-                                          hello_world, NODE )
+                                          hello_world, NODE )                  \
+    using DeviceType##NODE = typename NODE::device_type;                       \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT(                                      \
+        NearestNeighborOperator, structured_clouds, DeviceType##NODE )         \
+    TEUCHOS_UNIT_TEST_TEMPLATE_1_INSTANT( NearestNeighborOperator,             \
+                                          mixed_clouds, DeviceType##NODE )
 
 // Demangle the types
 DTK_ETI_MANGLING_TYPEDEFS()
