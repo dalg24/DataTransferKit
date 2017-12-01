@@ -137,7 +137,7 @@ class PriorityQueue
     }
 
   private:
-    static IndexType constexpr _max_size = 256;
+    static IndexType constexpr _max_size = 512;
     T _heap[_max_size];
     IndexType _size = 0;
     Compare _compare;
