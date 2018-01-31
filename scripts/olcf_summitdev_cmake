@@ -5,18 +5,17 @@ ARGS=(
     -D BUILD_SHARED_LIBS=ON
     ### COMPILERS AND FLAGS ###
     -D CMAKE_CXX_FLAGS="-g -arch=sm_60 -lineinfo \
-        -std=c++11 --expt-extended-lambda \
         -Xcudafe --diag_suppress=conversion_function_not_usable \
         -Xcudafe --diag_suppress=cc_clobber_ignored \
         -Xcudafe --diag_suppress=code_is_unreachable"
     -D DataTransferKit_CXX_FLAGS="-Wall -Wno-shadow -Wpedantic"
+    -D Trilinos_CXX11_FLAGS="-std=c++11 --expt-extended-lambda"
     ### TPLs ###
     -D TPL_ENABLE_MPI=ON
     -D TPL_ENABLE_BLAS=ON
     -D TPL_ENABLE_LAPACK=ON
     -D TPL_ENABLE_CUDA=ON
     -D TPL_ENABLE_Boost=ON
-    -D TPL_ENABLE_BoostLib=ON
     ### ETI ###
     -D Trilinos_ENABLE_EXPLICIT_INSTANTIATION=ON
     ### PACKAGES CONFIGURATION ###
@@ -32,10 +31,10 @@ ARGS=(
         -D Tpetra_INST_SERIAL=ON
         -D Tpetra_INST_OPENMP=ON
         -D Tpetra_INST_CUDA=ON
-    -D Kokkos_ENABLE_OpenMP=ON
-    -D Kokkos_ENABLE_Cuda=ON
-    -D Kokkos_ENABLE_Cuda_UVM=ON
-    -D Kokkos_ENABLE_Cuda_Lambda=ON
+        -D Kokkos_ENABLE_OpenMP=ON
+        -D Kokkos_ENABLE_Cuda=ON
+        -D Kokkos_ENABLE_Cuda_UVM=ON
+        -D Kokkos_ENABLE_Cuda_Lambda=ON
     ### DTK ###
     -D Trilinos_EXTRA_REPOSITORIES="DataTransferKit"
     -D Trilinos_ENABLE_DataTransferKit=ON
