@@ -35,3 +35,7 @@ IF(Kokkos_ENABLE_OpenMP)
     FAIL_REGULAR_EXPRESSION "data race;leak;runtime error"
     )
 ENDIF()
+TRIBITS_ADD_EXECUTABLE(
+  performance_investigation
+  SOURCES parallel_reduction_performance_investigation.cpp
+  )
