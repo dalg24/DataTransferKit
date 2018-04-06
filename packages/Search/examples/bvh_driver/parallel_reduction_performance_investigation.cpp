@@ -13,6 +13,7 @@
 #include <DTK_LinearBVH.hpp>
 
 #include <Kokkos_DefaultNode.hpp>
+#include <Kokkos_Random.hpp>
 #include <Teuchos_CommandLineProcessor.hpp>
 #include <Teuchos_StandardCatchMacros.hpp>
 
@@ -90,6 +91,146 @@ int main_( Teuchos::CommandLineProcessor &clp, int argc, char *argv[] )
 
     std::ostream &os = std::cout;
 
+    {
+        // parallel min reduce over unmanaged view
+        Kokkos::View<double *, DeviceType> v( "v", 6 * n_values );
+        Kokkos::Random_XorShift64_Pool<> pool( 12371 );
+        Kokkos::fill_random( v, pool, 1.0 );
+        auto start = std::chrono::high_resolution_clock::now();
+        double result;
+        Kokkos::Experimental::Min<double> reducer( result );
+        Kokkos::parallel_reduce(
+            "min_reduce",
+            Kokkos::RangePolicy<ExecutionSpace>( 0, 6 * n_values ),
+            KOKKOS_LAMBDA( int i, double &update ) {
+                if ( v( i ) < update )
+                    update = v( i );
+            },
+            reducer );
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        os << "min reduce View double" << elapsed_seconds.count() << "\n";
+    }
+
+    {
+        // parallel min reduce over unmanaged view
+        auto start = std::chrono::high_resolution_clock::now();
+        double result;
+        Kokkos::View<double *, Kokkos::LayoutRight,
+                     Kokkos::MemoryTraits<Kokkos::Unmanaged>>
+        v( reinterpret_cast<double *>( bounding_boxes.data() ), 6 * n_values );
+        Kokkos::Experimental::Min<double> reducer( result );
+        Kokkos::parallel_reduce(
+            "min_reduce",
+            Kokkos::RangePolicy<ExecutionSpace>( 0, 6 * n_values ),
+            KOKKOS_LAMBDA( int i, double &update ) {
+                if ( v( i ) < update )
+                    update = v( i );
+            },
+            reducer );
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        os << "min reduce reinterpreted unmanaged view "
+           << elapsed_seconds.count() << "\n";
+    }
+
+    {
+        // unmanaged view
+        auto start = std::chrono::high_resolution_clock::now();
+        Kokkos::View<double ***, Kokkos::LayoutRight,
+                     Kokkos::MemoryTraits<Kokkos::Unmanaged>>
+        v( reinterpret_cast<double *>( bounding_boxes.data() ), n_values, 2,
+           3 );
+        DataTransferKit::Box b;
+        for ( int d = 0; d < 3; ++d )
+        {
+            auto buffer_min = Kokkos::subview( v, Kokkos::ALL, 0, d );
+            Kokkos::Experimental::Min<double> min_reducer( b.minCorner()[d] );
+            Kokkos::parallel_reduce(
+                "min_reduce_" + std::to_string( d ),
+                Kokkos::RangePolicy<ExecutionSpace>( 0, n_values ),
+                KOKKOS_LAMBDA( const int &i, double &min ) {
+                    if ( buffer_min( i ) < min )
+                        min = buffer_min( i );
+                },
+                min_reducer );
+
+            auto buffer_max = Kokkos::subview( v, Kokkos::ALL, 1, d );
+            Kokkos::Experimental::Max<double> max_reducer( b.maxCorner()[d] );
+            Kokkos::parallel_reduce(
+                "max_reduce_" + std::to_string( d ),
+                Kokkos::RangePolicy<ExecutionSpace>( 0, n_values ),
+                KOKKOS_LAMBDA( const int &i, double &max ) {
+                    if ( buffer_max( i ) > max )
+                        max = buffer_max( i );
+                },
+                max_reducer );
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        os << "unmanaged view " << elapsed_seconds.count() << "\n";
+        std::cout << "( " << b.minCorner()[0] << ", " << b.minCorner()[1]
+                  << ", " << b.minCorner()[2] << " )  ( " << b.maxCorner()[0]
+                  << ", " << b.maxCorner()[1] << ", " << b.maxCorner()[2]
+                  << " )\n";
+    }
+
+    {
+        // unmanaged view with copies
+        auto start = std::chrono::high_resolution_clock::now();
+        Kokkos::View<double ***, Kokkos::LayoutRight,
+                     Kokkos::MemoryTraits<Kokkos::Unmanaged>>
+        v( reinterpret_cast<double *>( bounding_boxes.data() ), n_values, 2,
+           3 );
+        DataTransferKit::Box b;
+        Kokkos::View<double *, DeviceType> buffer( "buffer", n_values );
+        for ( int d = 0; d < 3; ++d )
+        {
+            Kokkos::deep_copy( buffer,
+                               Kokkos::subview( v, Kokkos::ALL, 0, d ) );
+            Kokkos::Experimental::Min<double> min_reducer( b.minCorner()[d] );
+            Kokkos::parallel_reduce(
+                "min_reduce_" + std::to_string( d ),
+                Kokkos::RangePolicy<ExecutionSpace>( 0, n_values ),
+                KOKKOS_LAMBDA( const int &i, double &min ) {
+                    if ( buffer( i ) < min )
+                        min = buffer( i );
+                },
+                min_reducer );
+
+            Kokkos::deep_copy( buffer,
+                               Kokkos::subview( v, Kokkos::ALL, 1, d ) );
+            Kokkos::Experimental::Max<double> max_reducer( b.maxCorner()[d] );
+            Kokkos::parallel_reduce(
+                "max_reduce_" + std::to_string( d ),
+                Kokkos::RangePolicy<ExecutionSpace>( 0, n_values ),
+                KOKKOS_LAMBDA( const int &i, double &max ) {
+                    if ( buffer( i ) > max )
+                        max = buffer( i );
+                },
+                max_reducer );
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        os << "unmanaged view with copies " << elapsed_seconds.count() << "\n";
+        os << bounding_boxes[0].minCorner()[0] << "  " << v( 0, 0, 0 ) << "\n";
+        os << bounding_boxes[0].minCorner()[1] << "  " << v( 0, 0, 1 ) << "\n";
+        os << bounding_boxes[0].minCorner()[2] << "  " << v( 0, 0, 2 ) << "\n";
+        os << bounding_boxes[0].maxCorner()[0] << "  " << v( 0, 1, 0 ) << "\n";
+        os << bounding_boxes[0].maxCorner()[1] << "  " << v( 0, 1, 1 ) << "\n";
+        os << bounding_boxes[0].maxCorner()[2] << "  " << v( 0, 1, 2 ) << "\n";
+        os << bounding_boxes[1].minCorner()[0] << "  " << v( 1, 0, 0 ) << "\n";
+        os << bounding_boxes[1].minCorner()[1] << "  " << v( 1, 0, 1 ) << "\n";
+        os << bounding_boxes[1].minCorner()[2] << "  " << v( 1, 0, 2 ) << "\n";
+        os << bounding_boxes[1].maxCorner()[0] << "  " << v( 1, 1, 0 ) << "\n";
+        os << bounding_boxes[1].maxCorner()[1] << "  " << v( 1, 1, 1 ) << "\n";
+        os << bounding_boxes[1].maxCorner()[2] << "  " << v( 1, 1, 2 ) << "\n";
+        std::cout << "( " << b.minCorner()[0] << ", " << b.minCorner()[1]
+                  << ", " << b.minCorner()[2] << " )  ( " << b.maxCorner()[0]
+                  << ", " << b.maxCorner()[1] << ", " << b.maxCorner()[2]
+                  << " )\n";
+    }
+
     DataTransferKit::Box scene_bounding_box;
     auto start = std::chrono::high_resolution_clock::now();
     DataTransferKit::Details::TreeConstruction<
@@ -98,6 +239,11 @@ int main_( Teuchos::CommandLineProcessor &clp, int argc, char *argv[] )
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
     os << "calculate scene bounding box " << elapsed_seconds.count() << "\n";
+
+    auto b = scene_bounding_box;
+    std::cout << "( " << b.minCorner()[0] << ", " << b.minCorner()[1] << ", "
+              << b.minCorner()[2] << " )  ( " << b.maxCorner()[0] << ", "
+              << b.maxCorner()[1] << ", " << b.maxCorner()[2] << " )\n";
 
     if ( build_bounding_volume_hierarchy )
     {
