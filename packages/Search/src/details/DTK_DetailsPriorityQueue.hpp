@@ -60,7 +60,7 @@ class PriorityQueue
 
         // add the element to the bottom level of the heap
         SizeType pos = _size;
-        _heap[pos] = T( std::forward<Args>( args )... );
+        _heap[pos] = T{std::forward<Args>( args )...};
 
         // perform up-heap operation
         while ( pos > 0 )
