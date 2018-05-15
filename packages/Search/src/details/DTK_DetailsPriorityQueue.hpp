@@ -12,7 +12,6 @@
 #define DTK_DETAILS_PRIORITY_QUEUE_HPP
 
 #include <Kokkos_Macros.hpp>
-#include <impl/Kokkos_Utilities.hpp> // move
 
 #include <cassert>
 #include <cstdlib>
@@ -28,9 +27,9 @@ namespace Details
 template <typename T>
 KOKKOS_INLINE_FUNCTION void swap( T &a, T &b )
 {
-    T c( Kokkos::Impl::move( a ) );
-    a = Kokkos::Impl::move( b );
-    b = Kokkos::Impl::move( c );
+    T c{std::move( a )};
+    a = std::move( b );
+    b = std::move( c );
 }
 
 template <typename T>
