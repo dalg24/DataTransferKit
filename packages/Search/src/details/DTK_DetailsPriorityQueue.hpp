@@ -123,7 +123,8 @@ class PriorityQueue
         _heap[_size - 1] = T{std::forward<Args>( args )...};
 
         // This works, because pop will remove the 0th element,
-        // insert the last one on top (added in the previous line), and bubble it down
+        // insert the last one on top (added in the previous line), and bubble
+        // it down
         pop();
     }
 
