@@ -9,6 +9,7 @@
  * SPDX-License-Identifier: BSD-3-Clause                                    *
  ****************************************************************************/
 
+#include "/scratch/source/trilinos/release/DataTransferKit/packages/Search/test/DTK_BoostRTreeHelpers.hpp"
 #include <DTK_LinearBVH.hpp>
 
 #include <Kokkos_DefaultNode.hpp>
@@ -19,7 +20,78 @@
 #include <cmath> // cbrt
 #include <random>
 
-template <class NO>
+struct BoundingVolumeHierarchyTag
+{
+};
+
+struct RTreeTag
+{
+};
+
+struct KDTreeTag
+{
+};
+
+template <typename Index>
+struct Traits
+{
+    using Tag = BoundingVolumeHierarchyTag;
+};
+
+template <>
+struct Traits<BoostRTreeHelpers::RTree<DataTransferKit::Box>>
+{
+    using Tag = RTreeTag;
+};
+
+template <typename Index, typename Indexable>
+Index make_index_dispatch( Indexable geometries, BoundingVolumeHierarchyTag )
+{
+    return Index( geometries );
+}
+
+template <typename Index, typename Indexable>
+Index make_index_dispatch( Indexable geometries, RTreeTag )
+{
+    return BoostRTreeHelpers::makeRTree( geometries );
+}
+
+template <typename Index, typename Indexable>
+Index make_index( Indexable geometries )
+{
+    using Tag = typename Traits<Index>::Tag;
+    return make_index_dispatch<Index, Indexable>( geometries, Tag{} );
+}
+
+template <typename Index, typename Query>
+std::tuple<Kokkos::View<int *, typename Query::device_type>,
+           Kokkos::View<int *, typename Query::device_type>>
+query_dispatch( Index index, Query queries, BoundingVolumeHierarchyTag )
+{
+    Kokkos::View<int *, typename Query::device_type> offset( "offset" );
+    Kokkos::View<int *, typename Query::device_type> indices( "indices" );
+    index.query( queries, indices, offset );
+    return std::make_tuple( offset, indices );
+}
+
+template <typename Index, typename Query>
+std::tuple<Kokkos::View<int *, typename Query::device_type>,
+           Kokkos::View<int *, typename Query::device_type>>
+query_dispatch( Index index, Query queries, RTreeTag )
+{
+    return BoostRTreeHelpers::performQueries( index, queries );
+}
+
+template <typename Index, typename Query>
+std::tuple<Kokkos::View<int *, typename Query::device_type>,
+           Kokkos::View<int *, typename Query::device_type>>
+query( Index index, Query queries )
+{
+    using Tag = typename Traits<Index>::Tag;
+    return query_dispatch( index, queries, Tag{} );
+}
+
+template <class NO, typename Index>
 int main_( Teuchos::CommandLineProcessor &clp, int argc, char *argv[] )
 {
     using DeviceType = typename NO::device_type;
@@ -99,7 +171,7 @@ int main_( Teuchos::CommandLineProcessor &clp, int argc, char *argv[] )
     std::ostream &os = std::cout;
 
     auto start = std::chrono::high_resolution_clock::now();
-    DataTransferKit::BVH<DeviceType> bvh( bounding_boxes );
+    auto index = make_index<Index>( bounding_boxes );
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
     os << "construction " << elapsed_seconds.count() << "\n";
@@ -117,11 +189,8 @@ int main_( Teuchos::CommandLineProcessor &clp, int argc, char *argv[] )
             } );
         Kokkos::fence();
 
-        Kokkos::View<int *, DeviceType> offset( "offset" );
-        Kokkos::View<int *, DeviceType> indices( "indices" );
-
         start = std::chrono::high_resolution_clock::now();
-        bvh.query( queries, indices, offset );
+        auto results = query( index, queries );
         end = std::chrono::high_resolution_clock::now();
 
         elapsed_seconds = end - start;
@@ -146,11 +215,8 @@ int main_( Teuchos::CommandLineProcessor &clp, int argc, char *argv[] )
             } );
         Kokkos::fence();
 
-        Kokkos::View<int *, DeviceType> offset( "offset" );
-        Kokkos::View<int *, DeviceType> indices( "indices" );
-
         start = std::chrono::high_resolution_clock::now();
-        bvh.query( queries, indices, offset );
+        auto results = query( index, queries );
         end = std::chrono::high_resolution_clock::now();
 
         elapsed_seconds = end - start;
@@ -194,13 +260,17 @@ int main( int argc, char *argv[] )
         else if ( node == "" )
         {
             typedef KokkosClassic::DefaultNode::DefaultNodeType Node;
-            main_<Node>( clp, argc, argv );
+            using DeviceType = typename Node::device_type;
+            main_<Node, DataTransferKit::BoundingVolumeHierarchy<DeviceType>>(
+                clp, argc, argv );
         }
         else if ( node == "serial" )
         {
 #ifdef KOKKOS_ENABLE_SERIAL
             typedef Kokkos::Compat::KokkosSerialWrapperNode Node;
-            main_<Node>( clp, argc, argv );
+            using DeviceType = typename Node::device_type;
+            main_<Node, DataTransferKit::BoundingVolumeHierarchy<DeviceType>>(
+                clp, argc, argv );
 #else
             throw std::runtime_error( "Serial node type is disabled" );
 #endif
@@ -209,7 +279,9 @@ int main( int argc, char *argv[] )
         {
 #ifdef KOKKOS_ENABLE_OPENMP
             typedef Kokkos::Compat::KokkosOpenMPWrapperNode Node;
-            main_<Node>( clp, argc, argv );
+            using DeviceType = typename Node::device_type;
+            main_<Node, DataTransferKit::BoundingVolumeHierarchy<DeviceType>>(
+                clp, argc, argv );
 #else
             throw std::runtime_error( "OpenMP node type is disabled" );
 #endif
@@ -218,7 +290,20 @@ int main( int argc, char *argv[] )
         {
 #ifdef KOKKOS_ENABLE_CUDA
             typedef Kokkos::Compat::KokkosCudaWrapperNode Node;
-            main_<Node>( clp, argc, argv );
+            using DeviceType = typename Node::device_type;
+            main_<Node, DataTransferKit::BoundingVolumeHierarchy<DeviceType>>(
+                clp, argc, argv );
+#else
+            throw std::runtime_error( "CUDA node type is disabled" );
+#endif
+        }
+        else if ( node == "boost" )
+        {
+#ifdef KOKKOS_ENABLE_SERIAL
+            typedef Kokkos::Compat::KokkosSerialWrapperNode Node;
+            using DeviceType = typename Node::device_type;
+            main_<Node, BoostRTreeHelpers::RTree<DataTransferKit::Box>>(
+                clp, argc, argv );
 #else
             throw std::runtime_error( "CUDA node type is disabled" );
 #endif
