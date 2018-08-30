@@ -73,7 +73,47 @@ struct TreeTraversal
         return ( bvh.size() > 1 ? bvh._internal_nodes : bvh._leaf_nodes )
             .data();
     }
+
+    KOKKOS_INLINE_FUNCTION
+    static size_t getIndex( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                            Node const *node )
+    {
+        if ( isLeaf( node ) )
+            return getIndex( node );
+        else
+            return node - getRoot( bvh );
+    }
 };
+
+template <typename DeviceType>
+void visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Node const *node,
+            std::ostream &os )
+{
+    int const index = TreeTraversal<DeviceType>::getIndex( bvh, node );
+    if ( TreeTraversal<DeviceType>::isLeaf( node ) )
+    {
+        os << " child{ node [leaf] (l" << index << ") {l" << index << "} }";
+    }
+
+    else
+    {
+        os << " child{ node [internal] (i" << index << ") {i" << index << "}";
+        for ( Node const *child :
+              {node->children.first, node->children.second} )
+            visit( bvh, child, os );
+        os << " }";
+    }
+}
+
+template <typename DeviceType>
+void visit( BoundingVolumeHierarchy<DeviceType> const &bvh, std::ostream &os )
+{
+    os << "\\node [internal] (i0) {i0}";
+    Node const *root = TreeTraversal<DeviceType>::getRoot( bvh );
+    for ( Node const *child : {root->children.first, root->children.second} )
+        visit( bvh, child, os );
+    os << ";\n";
+}
 
 // There are two (related) families of search: one using a spatial predicate and
 // one using nearest neighbours query (see boost::geometry::queries
@@ -277,6 +317,31 @@ KOKKOS_INLINE_FUNCTION int queryDispatch(
                              return distance( geometry, node->bounding_box );
                          },
                          k, insert, buffer );
+}
+
+template <typename DeviceType, typename Predicate>
+KOKKOS_INLINE_FUNCTION int
+visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
+       std::ostream &os )
+{
+    auto const geometry = pred._geometry;
+    auto const k = pred._k;
+    os << "\\draw [test={1.2pt}{c2}{c3}] (i0)";
+    int const count =
+        nearestQuery( bvh,
+                      [geometry, &os, &bvh]( Node const *node ) {
+                          os << " to (";
+                          if ( TreeTraversal<DeviceType>::isLeaf( node ) )
+                              os << "l";
+                          else
+                              os << "i";
+                          os << TreeTraversal<DeviceType>::getIndex( bvh, node )
+                             << ")";
+                          return distance( geometry, node->bounding_box );
+                      },
+                      k, []( int, double ) {} );
+    os << ";\n";
+    return count;
 }
 
 } // namespace Details
