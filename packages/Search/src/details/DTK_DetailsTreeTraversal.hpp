@@ -326,6 +326,7 @@ visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
 {
     auto const geometry = pred._geometry;
     auto const k = pred._k;
+    Kokkos::View<Kokkos::pair<int, double> *, DeviceType> buffer( "buffer", k );
     os << "\\draw [test={1.2pt}{c2}{c3}] (i0)";
     int const count =
         nearestQuery( bvh,
@@ -339,7 +340,7 @@ visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
                              << ")";
                           return distance( geometry, node->bounding_box );
                       },
-                      k, []( int, double ) {} );
+                      k, []( int, double ) {}, buffer );
     os << ";\n";
     return count;
 }
