@@ -86,6 +86,44 @@ struct TreeTraversal
 };
 
 template <typename DeviceType>
+void printNodeBoundingVolume( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                              Node const *node, std::ostream &os )
+{
+    auto const min_corner = node->bounding_box.minCorner();
+    auto const max_corner = node->bounding_box.maxCorner();
+    auto printPoint = [&os]( Point const &p ) {
+        os << "(" << p[0] << "," << p[1] << ")";
+    };
+    bool const node_is_leaf = TreeTraversal<DeviceType>::isLeaf( node );
+    os << ( node_is_leaf ? "\\draw[leaf_bounding_volume] "
+                         : "\\draw[internal_bounding_volume] " );
+    printPoint( min_corner );
+    os << " rectangle ";
+    printPoint( max_corner );
+    os << ";\n";
+}
+
+template <typename DeviceType>
+void printAllBoundingVolumes( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                              std::ostream &os )
+{
+    Stack<Node const *> stack;
+    stack.emplace( TreeTraversal<DeviceType>::getRoot( bvh ) );
+    while ( !stack.empty() )
+    {
+        Node const *node = stack.top();
+        stack.pop();
+
+        printNodeBoundingVolume( bvh, node, os );
+
+        if ( !TreeTraversal<DeviceType>::isLeaf( node ) )
+            for ( Node const *child :
+                  {node->children.first, node->children.second} )
+                stack.push( child );
+    }
+}
+
+template <typename DeviceType>
 void visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Node const *node,
             std::ostream &os )
 {
@@ -342,6 +380,24 @@ visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
                       },
                       k, []( int, double ) {}, buffer );
     os << ";\n";
+    return count;
+}
+
+template <typename DeviceType, typename Predicate>
+KOKKOS_INLINE_FUNCTION int
+visit2( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
+        std::ostream &os )
+{
+    auto const geometry = pred._geometry;
+    auto const k = pred._k;
+    Kokkos::View<Kokkos::pair<int, double> *, DeviceType> buffer( "buffer", k );
+    int const count =
+        nearestQuery( bvh,
+                      [geometry, &os, &bvh]( Node const *node ) {
+                          printNodeBoundingVolume( bvh, node, os );
+                          return distance( geometry, node->bounding_box );
+                      },
+                      k, []( int, double ) {}, buffer );
     return count;
 }
 
