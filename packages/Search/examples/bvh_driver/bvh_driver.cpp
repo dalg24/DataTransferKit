@@ -10,6 +10,7 @@
  ****************************************************************************/
 
 #include "../test/DTK_BoostRTreeHelpers.hpp"
+#include "../test/DTK_NanoflannKDTreeHelpers.hpp"
 
 #include <DTK_LinearBVH.hpp>
 
@@ -24,6 +25,60 @@
 #include <cmath> // cbrt
 #include <cstdlib>
 #include <random>
+
+#if defined( KOKKOS_ENABLE_SERIAL )
+class NanoflannKDTree
+{
+  public:
+    using DeviceType = Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>;
+    using device_type = DeviceType;
+
+    Kokkos::View<DataTransferKit::Point *, DeviceType>
+    toPoints( Kokkos::View<DataTransferKit::Box *, DeviceType> boxes )
+    {
+        using ExecutionSpace = DeviceType::execution_space;
+        auto const n = boxes.extent( 0 );
+        Kokkos::View<DataTransferKit::Point *, DeviceType> points( "points",
+                                                                   n );
+        Kokkos::parallel_for( Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
+                              KOKKOS_LAMBDA( int i ) {
+                                  DataTransferKit::Details::centroid(
+                                      boxes( i ), points( i ) );
+                              } );
+        Kokkos::fence();
+        return points;
+    }
+
+    NanoflannKDTree( Kokkos::View<DataTransferKit::Box *, DeviceType> boxes )
+    {
+        _tree =
+            NanoflannKDTreeHelpers<DeviceType>::makeKDTree( toPoints( boxes ) );
+    }
+
+    template <typename Query>
+    void query( Kokkos::View<Query *, DeviceType> queries,
+                Kokkos::View<int *, DeviceType> &indices,
+                Kokkos::View<int *, DeviceType> &offset )
+    {
+        std::tie( offset, indices ) =
+            NanoflannKDTreeHelpers<DeviceType>::performQueries( _tree,
+                                                                queries );
+    }
+
+    template <typename Query>
+    void query( Kokkos::View<Query *, DeviceType> queries,
+                Kokkos::View<int *, DeviceType> &indices,
+                Kokkos::View<int *, DeviceType> &offset, int )
+    {
+        std::tie( offset, indices ) =
+            NanoflannKDTreeHelpers<DeviceType>::performQueries( _tree,
+                                                                queries );
+    }
+
+  private:
+    NanoflannKDTreeHelpers<DeviceType>::KDTreeUniquePtr _tree;
+};
+#endif
 
 #if defined( HAVE_DTK_BOOST ) && defined( KOKKOS_ENABLE_SERIAL )
 class BoostRTree
@@ -352,6 +407,10 @@ int main( int argc, char *argv[] )
 
 #if defined( HAVE_DTK_BOOST ) && defined( KOKKOS_ENABLE_SERIAL )
     REGISTER_BENCHMARK( BoostRTree );
+#endif
+
+#if defined( KOKKOS_ENABLE_SERIAL )
+    REGISTER_BENCHMARK( NanoflannKDTree );
 #endif
 
     benchmark::RunSpecifiedBenchmarks();
