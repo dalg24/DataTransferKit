@@ -124,8 +124,8 @@ void printAllBoundingVolumes( BoundingVolumeHierarchy<DeviceType> const &bvh,
 }
 
 template <typename DeviceType>
-void visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Node const *node,
-            std::ostream &os )
+void printTikZ( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                Node const *node, std::ostream &os )
 {
     int const index = TreeTraversal<DeviceType>::getIndex( bvh, node );
     if ( TreeTraversal<DeviceType>::isLeaf( node ) )
@@ -138,7 +138,7 @@ void visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Node const *node,
         os << " child{ node [internal] (i" << index << ") {i" << index << "}";
         for ( Node const *child :
               {node->children.first, node->children.second} )
-            visit( bvh, child, os );
+            printTikZ( bvh, child, os );
         os << " }";
     }
 }
@@ -149,7 +149,7 @@ void visit( BoundingVolumeHierarchy<DeviceType> const &bvh, std::ostream &os )
     os << "\\node [internal] (i0) {i0}";
     Node const *root = TreeTraversal<DeviceType>::getRoot( bvh );
     for ( Node const *child : {root->children.first, root->children.second} )
-        visit( bvh, child, os );
+        printTikZ( bvh, child, os );
     os << ";\n";
 }
 
