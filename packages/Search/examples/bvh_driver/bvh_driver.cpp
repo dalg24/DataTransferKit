@@ -142,6 +142,113 @@ makeSpatialQueries( int n_values, int n_queries, int n_neighbors,
     return queries;
 }
 
+template <typename DeviceType>
+void print( Kokkos::View<DataTransferKit::Point *, DeviceType> points,
+            std::ostream &os )
+{
+    auto const n = points.extent_int( 0 );
+    for ( int i = 0; i < n; ++i )
+        os << "\\node[leaf_point] at (" << points( i )[0] << ","
+           << points( i )[1] << ") {\\textbullet};\n";
+}
+
+template <class TreeType>
+void BM_visit( benchmark::State & )
+{
+    using DeviceType = typename TreeType::device_type;
+    using ExecutionSpace = typename DeviceType::execution_space;
+    Kokkos::View<DataTransferKit::Point *, DeviceType> points( "points" );
+    loadPointCloud( "/scratch/source/trilinos/release/DataTransferKit/packages/"
+                    "Search/examples/point_clouds/leaf_cloud.txt",
+                    points );
+    auto const n_values = points.extent( 0 );
+    Kokkos::View<DataTransferKit::Box *, DeviceType> boxes(
+        Kokkos::ViewAllocateWithoutInitializing( "boxes" ), n_values );
+    Kokkos::parallel_for( Kokkos::RangePolicy<ExecutionSpace>( 0, n_values ),
+                          KOKKOS_LAMBDA( int i ) {
+                              double const x = points( i )[0];
+                              double const y = points( i )[1];
+                              double const z = points( i )[2];
+                              boxes( i ) = {{{x, y, z}}, {{x, y, z}}};
+                          } );
+    Kokkos::fence();
+
+#define SMALL
+#if defined( SMALL )
+    Kokkos::resize( points, 8 );
+    points( 0 ) = {.9, .3, .0};
+    points( 1 ) = {.2, .2, .0};
+    points( 2 ) = {.6, .9, .0};
+    points( 3 ) = {.2, .7, .0};
+    points( 4 ) = {.7, .2, .0};
+    points( 5 ) = {.0, .1, .0};
+    points( 6 ) = {.5, .4, .0};
+    points( 7 ) = {.8, .7, .0};
+
+    Kokkos::resize( boxes, 8 );
+    Kokkos::parallel_for(
+        Kokkos::RangePolicy<ExecutionSpace>( 0, 8 ), KOKKOS_LAMBDA( int i ) {
+            double const x = points( i )[0];
+            double const y = points( i )[1];
+            double const z = points( i )[2];
+            boxes( i ) = {{{x, y, z}}, {{x + .14, y + .18, z}}};
+        } );
+    Kokkos::fence();
+#endif
+
+    TreeType bvh( boxes );
+    std::ostream &os = std::cout;
+
+    auto const n_neighbors = 1;
+
+#if defined( SMALL )
+    std::string const prefix = "small_";
+#else
+    std::string const prefix = "big_";
+#endif
+
+    std::fstream fout;
+
+#if not defined( SMALL )
+    fout.open( prefix + "points", std::fstream::out );
+    print( points, fout );
+    fout.close();
+#endif
+
+    for ( int k : {1, 2, 4, 8} )
+    {
+        fout.open( prefix + std::to_string( k ) +
+                       "_nearest_to_origin_tree_traversal_nodes.dot.m4",
+                   std::fstream::out );
+        DataTransferKit::Details::visit(
+            bvh,
+            DataTransferKit::nearest( DataTransferKit::Point{0., 0., 0.}, k ),
+            fout );
+        fout.close();
+
+        fout.open( prefix + std::to_string( k ) +
+                       "_nearest_to_origin_tree_traversal_bounding_volumes.tex",
+                   std::fstream::out );
+        DataTransferKit::Details::visit<
+            DeviceType, DataTransferKit::Nearest<DataTransferKit::Point>,
+            DataTransferKit::Details::BoundingVolumesVisitor>(
+            bvh,
+            DataTransferKit::nearest( DataTransferKit::Point{0., 0., 0.}, k ),
+            fout );
+        fout.close();
+    }
+
+    fout.open( prefix + "tree_all_nodes_and_edges.dot.m4", std::fstream::out );
+    DataTransferKit::Details::visitAllIterative<
+        DataTransferKit::Details::GraphvizVisitor>( bvh, fout );
+    fout.close();
+
+    fout.open( prefix + "all_bounding_volumes.tex", std::fstream::out );
+    DataTransferKit::Details::visitAllIterative<
+        DataTransferKit::Details::BoundingVolumesVisitor>( bvh, fout );
+    fout.close();
+}
+
 template <class TreeType>
 void BM_construction( benchmark::State &state )
 {
@@ -338,6 +445,8 @@ int main( int argc, char *argv[] )
 #ifdef KOKKOS_ENABLE_SERIAL
     using Serial = Kokkos::Compat::KokkosSerialWrapperNode::device_type;
     REGISTER_BENCHMARK( dtk::BVH<Serial> );
+
+    BENCHMARK_TEMPLATE( BM_visit, dtk::BVH<Serial> );
 #endif
 
 #ifdef KOKKOS_ENABLE_OPENMP

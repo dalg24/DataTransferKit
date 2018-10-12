@@ -62,6 +62,18 @@ struct TreeTraversal
         return reinterpret_cast<size_t>( leaf->children.second );
     }
 
+    // DO NOT USE IN PRODUCTION CODE THIS IS FOR VISUALIZATION PURPOSES ONLY
+    KOKKOS_INLINE_FUNCTION
+    static Node const *getLeaf( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                                size_t index )
+    {
+        Node const *leaf = ( bvh._leaf_nodes ).data();
+        for ( int i = 0; i < ( bvh._leaf_nodes ).extent_int( 0 ); ++i, ++leaf )
+            if ( index == getIndex( leaf ) )
+                return leaf;
+        return nullptr;
+    }
+
     /**
      * Return the root node of the BVH.
      */
@@ -84,28 +96,156 @@ struct TreeTraversal
             return node - getRoot( bvh );
     }
 };
-
 template <typename DeviceType>
-void printNodeBoundingVolume( BoundingVolumeHierarchy<DeviceType> const &bvh,
-                              Node const *node, std::ostream &os )
+std::string getNodeLabel( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                          Node const *node )
 {
-    auto const min_corner = node->bounding_box.minCorner();
-    auto const max_corner = node->bounding_box.maxCorner();
-    auto printPoint = [&os]( Point const &p ) {
-        os << "(" << p[0] << "," << p[1] << ")";
-    };
-    bool const node_is_leaf = TreeTraversal<DeviceType>::isLeaf( node );
-    os << ( node_is_leaf ? "\\draw[leaf_bounding_volume] "
-                         : "\\draw[internal_bounding_volume] " );
-    printPoint( min_corner );
-    os << " rectangle ";
-    printPoint( max_corner );
-    os << ";\n";
+    auto const node_is_leaf = TreeTraversal<DeviceType>::isLeaf( node );
+    auto const node_index = TreeTraversal<DeviceType>::getIndex( bvh, node );
+    std::string label = node_is_leaf ? "l" : "i";
+    label.append( std::to_string( node_index ) );
+    return label;
 }
 
 template <typename DeviceType>
-void printAllBoundingVolumes( BoundingVolumeHierarchy<DeviceType> const &bvh,
-                              std::ostream &os )
+std::string getNodeAttributes( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                               Node const *node )
+{
+    auto const node_is_leaf = TreeTraversal<DeviceType>::isLeaf( node );
+    std::string attributes = node_is_leaf ? "[leaf]" : "[internal]";
+    return attributes;
+}
+
+template <typename DeviceType>
+std::string getEdgeAttributes( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                               Node const *parent, Node const *child )
+{
+    auto const child_is_leaf = TreeTraversal<DeviceType>::isLeaf( child );
+    std::string attributes = child_is_leaf ? "[pendant]" : "[edge]";
+    return attributes;
+}
+
+// traverse is recursive
+template <typename DeviceType>
+void printTikZ( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                Node const *node, std::ostream &os )
+{
+    auto const node_label = getNodeLabel( bvh, node );
+    auto const node_attributes = getNodeAttributes( bvh, node );
+    auto const node_is_internal = !TreeTraversal<DeviceType>::isLeaf( node );
+    os << " child{ node ";
+    os << "[" << node_attributes << "] ";
+    os << "(" << node_label << ") {" << node_label << "}";
+    if ( node_is_internal )
+        for ( Node const *child :
+              {node->children.first, node->children.second} )
+            printTikZ( bvh, child, os );
+    os << " }";
+}
+
+struct GraphvizVisitor
+{
+    template <typename DeviceType>
+    static void visit( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                       Node const *node, std::ostream &os )
+    {
+        visitNode( bvh, node, os );
+        visitEdgesStartingFromNode( bvh, node, os );
+    }
+
+    template <typename DeviceType>
+    static void visit( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                       Node const *leaf, double distance, std::ostream &os )
+    {
+        auto const leaf_label = getNodeLabel( bvh, leaf );
+        std::string const leaf_attributes = "[result]";
+        std::string const commented_line = "// distance from " + leaf_label +
+                                           " is " + std::to_string( distance );
+        os << "    " << leaf_label << " " << leaf_attributes << ";\n";
+        os << "    " << commented_line << "\n";
+    }
+
+    template <typename DeviceType>
+    static void visitNode( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                           Node const *node, std::ostream &os )
+    {
+        auto const node_label = getNodeLabel( bvh, node );
+        auto const node_attributes = getNodeAttributes( bvh, node );
+
+        os << "    " << node_label << " " << node_attributes << ";\n";
+    }
+
+    template <typename DeviceType>
+    static void
+    visitEdgesStartingFromNode( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                                Node const *node, std::ostream &os )
+    {
+        auto const node_label = getNodeLabel( bvh, node );
+        auto const node_is_internal =
+            !TreeTraversal<DeviceType>::isLeaf( node );
+
+        if ( node_is_internal )
+            for ( Node const *child :
+                  {node->children.first, node->children.second} )
+            {
+                auto const child_label = getNodeLabel( bvh, child );
+                auto const edge_attributes =
+                    getEdgeAttributes( bvh, node, child );
+
+                os << "    " << node_label << " -> " << child_label << " "
+                   << edge_attributes << ";\n";
+            }
+    }
+};
+
+// std::ostream &operator<<( std::ostream &os, Point const &p )
+// {
+//   os << "(" << p[0] << "," << p[1] << ")";
+//   return os;
+// }
+
+struct BoundingVolumesVisitor
+{
+    static void printPoint( Point const &p, std::ostream &os )
+    {
+        os << "(" << p[0] << "," << p[1] << ")";
+    }
+
+    template <typename DeviceType>
+    static void visit( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                       Node const *node, std::ostream &os )
+    {
+        auto const node_label = getNodeLabel( bvh, node );
+        auto const node_attributes = getNodeAttributes( bvh, node );
+        auto const bounding_volume = node->bounding_box;
+        auto const min_corner = bounding_volume.minCorner();
+        auto const max_corner = bounding_volume.maxCorner();
+        bool const node_is_leaf = TreeTraversal<DeviceType>::isLeaf( node );
+        os << R"(\draw)" << node_attributes << " ";
+        printPoint( min_corner, os );
+        os << " rectangle ";
+        printPoint( max_corner, os );
+        os << " node {" << node_label << "}";
+        os << ";\n";
+    }
+
+    template <typename DeviceType>
+    static void visit( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                       Node const *leaf, double distance, std::ostream &os )
+    {
+        std::stringstream ss;
+        visit( bvh, leaf, ss );
+        std::string tmp = ss.str();
+        std::string const old_tag = "leaf";
+        std::string const new_tag = "result";
+        tmp.replace( tmp.find( old_tag ), old_tag.length(), new_tag );
+        os << tmp;
+    }
+};
+
+template <typename Visitor, typename DeviceType>
+void visitAllIterative( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                        std::ostream &os )
 {
     Stack<Node const *> stack;
     stack.emplace( TreeTraversal<DeviceType>::getRoot( bvh ) );
@@ -114,7 +254,7 @@ void printAllBoundingVolumes( BoundingVolumeHierarchy<DeviceType> const &bvh,
         Node const *node = stack.top();
         stack.pop();
 
-        printNodeBoundingVolume( bvh, node, os );
+        Visitor::visit( bvh, node, os );
 
         if ( !TreeTraversal<DeviceType>::isLeaf( node ) )
             for ( Node const *child :
@@ -124,27 +264,8 @@ void printAllBoundingVolumes( BoundingVolumeHierarchy<DeviceType> const &bvh,
 }
 
 template <typename DeviceType>
-void printTikZ( BoundingVolumeHierarchy<DeviceType> const &bvh,
-                Node const *node, std::ostream &os )
-{
-    int const index = TreeTraversal<DeviceType>::getIndex( bvh, node );
-    if ( TreeTraversal<DeviceType>::isLeaf( node ) )
-    {
-        os << " child{ node [leaf] (l" << index << ") {l" << index << "} }";
-    }
-
-    else
-    {
-        os << " child{ node [internal] (i" << index << ") {i" << index << "}";
-        for ( Node const *child :
-              {node->children.first, node->children.second} )
-            printTikZ( bvh, child, os );
-        os << " }";
-    }
-}
-
-template <typename DeviceType>
-void visit( BoundingVolumeHierarchy<DeviceType> const &bvh, std::ostream &os )
+void visitAllRecursive( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                        std::ostream &os )
 {
     os << "\\node [internal] (i0) {i0}";
     Node const *root = TreeTraversal<DeviceType>::getRoot( bvh );
@@ -357,7 +478,8 @@ KOKKOS_INLINE_FUNCTION int queryDispatch(
                          k, insert, buffer );
 }
 
-template <typename DeviceType, typename Predicate>
+template <typename DeviceType, typename Predicate,
+          typename Visitor = GraphvizVisitor>
 KOKKOS_INLINE_FUNCTION int
 visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
        std::ostream &os )
@@ -365,39 +487,19 @@ visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
     auto const geometry = pred._geometry;
     auto const k = pred._k;
     Kokkos::View<Kokkos::pair<int, double> *, DeviceType> buffer( "buffer", k );
-    os << "\\draw [test={1.2pt}{c2}{c3}] (i0)";
     int const count =
         nearestQuery( bvh,
                       [geometry, &os, &bvh]( Node const *node ) {
-                          os << " to (";
-                          if ( TreeTraversal<DeviceType>::isLeaf( node ) )
-                              os << "l";
-                          else
-                              os << "i";
-                          os << TreeTraversal<DeviceType>::getIndex( bvh, node )
-                             << ")";
+                          Visitor::visit( bvh, node, os );
                           return distance( geometry, node->bounding_box );
                       },
-                      k, []( int, double ) {}, buffer );
-    os << ";\n";
-    return count;
-}
-
-template <typename DeviceType, typename Predicate>
-KOKKOS_INLINE_FUNCTION int
-visit2( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
-        std::ostream &os )
-{
-    auto const geometry = pred._geometry;
-    auto const k = pred._k;
-    Kokkos::View<Kokkos::pair<int, double> *, DeviceType> buffer( "buffer", k );
-    int const count =
-        nearestQuery( bvh,
-                      [geometry, &os, &bvh]( Node const *node ) {
-                          printNodeBoundingVolume( bvh, node, os );
-                          return distance( geometry, node->bounding_box );
+                      k,
+                      [&os, &bvh]( int index, double distance ) {
+                          Node const *leaf =
+                              TreeTraversal<DeviceType>::getLeaf( bvh, index );
+                          Visitor::visit( bvh, leaf, distance, os );
                       },
-                      k, []( int, double ) {}, buffer );
+                      buffer );
     return count;
 }
 
