@@ -454,6 +454,72 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     return heap.size();
 }
 
+template <typename DeviceType, typename Distance, typename Insert>
+KOKKOS_FUNCTION int
+oldNearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
+                 Distance const &distance, std::size_t k, Insert const &insert )
+{
+    if ( bvh.empty() || k < 1 )
+        return 0;
+
+    if ( bvh.size() == 1 )
+    {
+        Node const *leaf = TreeTraversal<DeviceType>::getRoot( bvh );
+        int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
+        double const leaf_distance = distance( leaf );
+        insert( leaf_index, leaf_distance );
+        return 1;
+    }
+
+    using PairNodePtrDistance = Kokkos::pair<Node const *, double>;
+    struct CompareDistance
+    {
+        KOKKOS_INLINE_FUNCTION bool
+        operator()( PairNodePtrDistance const &lhs,
+                    PairNodePtrDistance const &rhs ) const
+        {
+            // reverse order (larger distance means lower priority)
+            return lhs.second > rhs.second;
+        }
+    };
+    PriorityQueue<PairNodePtrDistance, CompareDistance,
+                  StaticVector<PairNodePtrDistance, 256>>
+        queue;
+
+    // Do not bother computing the distance to the root node since it is
+    // immediately popped out of the stack and processed.
+    queue.emplace( TreeTraversal<DeviceType>::getRoot( bvh ), 0. );
+    int count = 0;
+
+    while ( !queue.empty() && count < k )
+    {
+        // get the node that is on top of the priority list (i.e. is the
+        // closest to the query point)
+        Node const *node = queue.top().first;
+        double const node_distance = queue.top().second;
+
+        if ( TreeTraversal<DeviceType>::isLeaf( node ) )
+        {
+            queue.pop();
+            int const leaf_index = TreeTraversal<DeviceType>::getIndex( node );
+            double const leaf_distance = node_distance;
+            insert( leaf_index, leaf_distance );
+            ++count;
+        }
+        else
+        {
+            // Insert children into the priority queue
+            Node const *left_child = node->children.first;
+            double const left_child_distance = distance( left_child );
+            Node const *right_child = node->children.second;
+            double const right_child_distance = distance( right_child );
+            queue.popPush( left_child, left_child_distance );
+            queue.emplace( right_child, right_child_distance );
+        }
+    }
+    return count;
+}
+
 template <typename DeviceType, typename Predicate, typename Insert>
 KOKKOS_INLINE_FUNCTION int
 queryDispatch( SpatialPredicateTag,
@@ -500,6 +566,28 @@ visit( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
                           Visitor::visit( bvh, leaf, distance, os );
                       },
                       buffer );
+    return count;
+}
+
+template <typename DeviceType, typename Predicate,
+          typename Visitor = GraphvizVisitor>
+KOKKOS_INLINE_FUNCTION int
+visitOld( BoundingVolumeHierarchy<DeviceType> const &bvh, Predicate const &pred,
+          std::ostream &os )
+{
+    auto const geometry = pred._geometry;
+    auto const k = pred._k;
+    int const count = oldNearestQuery(
+        bvh,
+        [geometry, &os, &bvh]( Node const *node ) {
+            Visitor::visit( bvh, node, os );
+            return distance( geometry, node->bounding_box );
+        },
+        k,
+        [&os, &bvh]( int index, double distance ) {
+            Node const *leaf = TreeTraversal<DeviceType>::getLeaf( bvh, index );
+            Visitor::visit( bvh, leaf, distance, os );
+        } );
     return count;
 }
 
