@@ -173,7 +173,7 @@ void BM_visit( benchmark::State & )
                           } );
     Kokkos::fence();
 
-#define SMALL
+//#define SMALL
 #if defined( SMALL )
     Kokkos::resize( points, 8 );
     points( 0 ) = {.9, .3, .0};
@@ -199,8 +199,6 @@ void BM_visit( benchmark::State & )
     TreeType bvh( boxes );
     std::ostream &os = std::cout;
 
-    auto const n_neighbors = 1;
-
 #if defined( SMALL )
     std::string const prefix = "small_";
 #else
@@ -214,6 +212,46 @@ void BM_visit( benchmark::State & )
     print( points, fout );
     fout.close();
 #endif
+
+    auto const n_neighbors = 10;
+
+    Kokkos::View<DataTransferKit::Nearest<DataTransferKit::Point> *, DeviceType>
+        queries( "queries", n_values );
+    Kokkos::parallel_for( Kokkos::RangePolicy<ExecutionSpace>( 0, n_values ),
+                          KOKKOS_LAMBDA( int i ) {
+                              queries( i ) = DataTransferKit::nearest(
+                                  points( i ), n_neighbors );
+                          } );
+    Kokkos::fence();
+
+    // Shuffle the queries
+    std::random_device rd;
+    std::mt19937 g( rd() );
+    std::shuffle( queries.data(), queries.data() + queries.size(), g );
+    auto const n_queries = 100;
+    for ( int i = 0; i < n_queries; ++i )
+    {
+        fout.open( prefix + "shuffled_" + std::to_string( i ) +
+                       "_nearest_traversal.dot.m4",
+                   std::fstream::out );
+        DataTransferKit::Details::visit( bvh, queries( i ), fout );
+        fout.close();
+    }
+
+    // Sort them
+    auto permute = DataTransferKit::Details::BatchedQueries<
+        DeviceType>::sortQueriesAlongZOrderCurve( bvh.bounds(), queries );
+    queries =
+        DataTransferKit::Details::BatchedQueries<DeviceType>::applyPermutation(
+            permute, queries );
+    for ( int i = 0; i < n_queries; ++i )
+    {
+        fout.open( prefix + "sorted_" + std::to_string( i ) +
+                       "_nearest_traversal.dot.m4",
+                   std::fstream::out );
+        DataTransferKit::Details::visit( bvh, queries( i ), fout );
+        fout.close();
+    }
 
     for ( int k : {1, 2, 4, 8} )
     {
