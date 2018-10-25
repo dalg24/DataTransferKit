@@ -489,7 +489,7 @@ oldNearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     // Do not bother computing the distance to the root node since it is
     // immediately popped out of the stack and processed.
     queue.emplace( TreeTraversal<DeviceType>::getRoot( bvh ), 0. );
-    int count = 0;
+    std::size_t count = 0;
 
     while ( !queue.empty() && count < k )
     {
