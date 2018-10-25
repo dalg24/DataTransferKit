@@ -241,7 +241,7 @@ void BM_visit( benchmark::State & )
     // Old nearest traversal with priority queue
     for ( int i = 0; i < n_queries; ++i )
     {
-        fout.open( prefix + "deprecated_" + std::to_string( i ) +
+        fout.open( prefix + "deprecated_shuffled_" + std::to_string( i ) +
                        "_nearest_traversal.dot.m4",
                    std::fstream::out );
         DataTransferKit::Details::visitOld( bvh, queries( i ), fout );
@@ -260,6 +260,15 @@ void BM_visit( benchmark::State & )
                        "_nearest_traversal.dot.m4",
                    std::fstream::out );
         DataTransferKit::Details::visit( bvh, queries( i ), fout );
+        fout.close();
+    }
+
+    for ( int i = 0; i < n_queries; ++i )
+    {
+        fout.open( prefix + "deprecated_sorted_" + std::to_string( i ) +
+                       "_nearest_traversal.dot.m4",
+                   std::fstream::out );
+        DataTransferKit::Details::visitOld( bvh, queries( i ), fout );
         fout.close();
     }
 
