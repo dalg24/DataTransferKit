@@ -161,7 +161,7 @@ void BM_visit( benchmark::State & )
     loadPointCloud( "/scratch/source/trilinos/release/DataTransferKit/packages/"
                     "Search/examples/point_clouds/leaf_cloud.txt",
                     points );
-    auto const n_values = points.extent( 0 );
+    auto const n_values = points.extent_int( 0 );
     Kokkos::View<DataTransferKit::Box *, DeviceType> boxes(
         Kokkos::ViewAllocateWithoutInitializing( "boxes" ), n_values );
     Kokkos::parallel_for( Kokkos::RangePolicy<ExecutionSpace>( 0, n_values ),
@@ -224,11 +224,29 @@ void BM_visit( benchmark::State & )
                           } );
     Kokkos::fence();
 
+    auto const n_queries = n_values;
+    for ( int i = 0; i < n_queries; ++i )
+    {
+        fout.open( prefix + "untouched_" + std::to_string( i ) +
+                       "_nearest_traversal.dot.m4",
+                   std::fstream::out );
+        DataTransferKit::Details::visit( bvh, queries( i ), fout );
+        fout.close();
+    }
+
+    for ( int i = 0; i < n_queries; ++i )
+    {
+        fout.open( prefix + "deprecated_untouched_" + std::to_string( i ) +
+                       "_nearest_traversal.dot.m4",
+                   std::fstream::out );
+        DataTransferKit::Details::visitOld( bvh, queries( i ), fout );
+        fout.close();
+    }
+
     // Shuffle the queries
     std::random_device rd;
     std::mt19937 g( rd() );
     std::shuffle( queries.data(), queries.data() + queries.size(), g );
-    auto const n_queries = 100;
     for ( int i = 0; i < n_queries; ++i )
     {
         fout.open( prefix + "shuffled_" + std::to_string( i ) +
