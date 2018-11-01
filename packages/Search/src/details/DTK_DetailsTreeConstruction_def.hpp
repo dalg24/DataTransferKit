@@ -103,10 +103,13 @@ class GenerateHierarchyFunctor
     GenerateHierarchyFunctor(
         Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes,
         Kokkos::View<Node *, DeviceType> leaf_nodes,
-        Kokkos::View<Node *, DeviceType> internal_nodes )
+        Kokkos::View<Node *, DeviceType> internal_nodes,
+        Kokkos::View<int *, DeviceType> parents )
         : _sorted_morton_codes( sorted_morton_codes )
         , _leaf_nodes( leaf_nodes )
         , _internal_nodes( internal_nodes )
+        , _parents( parents )
+        , _shift( leaf_nodes.extent( 0 ) )
     {
     }
 
@@ -133,30 +136,42 @@ class GenerateHierarchyFunctor
 
         Node *childA;
         if ( split == first )
+        {
             childA = &_leaf_nodes[split];
+            _parents( split ) = i;
+        }
         else
+        {
             childA = &_internal_nodes[split];
+            _parents( split + _shift ) = i;
+        }
 
         // Select childB.
 
         Node *childB;
         if ( split + 1 == last )
+        {
             childB = &_leaf_nodes[split + 1];
+            _parents( split + 1 ) = i;
+        }
         else
+        {
             childB = &_internal_nodes[split + 1];
+            _parents( split + 1 + _shift ) = i;
+        }
 
         // Record parent-child relationships.
 
         _internal_nodes[i].children.first = childA;
         _internal_nodes[i].children.second = childB;
-        childA->parent = &_internal_nodes[i];
-        childB->parent = &_internal_nodes[i];
     }
 
   private:
     Kokkos::View<unsigned int *, DeviceType> _sorted_morton_codes;
     Kokkos::View<Node *, DeviceType> _leaf_nodes;
     Kokkos::View<Node *, DeviceType> _internal_nodes;
+    Kokkos::View<int *, DeviceType> _parents;
+    int _shift;
 };
 
 template <typename DeviceType>
@@ -164,11 +179,13 @@ class CalculateBoundingBoxesFunctor
 {
   public:
     CalculateBoundingBoxesFunctor( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                                   Node *root )
+                                   Node *root, Kokkos::View<int *, DeviceType> parents )
         : _leaf_nodes( leaf_nodes )
         , _root( root )
         , _flags( Kokkos::ViewAllocateWithoutInitializing( "flags" ),
                   leaf_nodes.extent( 0 ) - 1 )
+        , _parents( parents )
+        , _shift( leaf_nodes.extent( 0 ) )
     {
         // Initialize flags to zero
         Kokkos::deep_copy( _flags, 0 );
@@ -177,17 +194,18 @@ class CalculateBoundingBoxesFunctor
     KOKKOS_INLINE_FUNCTION
     void operator()( int const i ) const
     {
-        Node *node = _leaf_nodes( i ).parent;
+        Node *node = _root + _parents( i );
         // Walk toward the root but do not actually process it because its
         // bounding box has already been computed (bounding box of the scene)
         while ( node != _root )
         {
+            int node_index = node - _root;
             // Use an atomic flag per internal node to terminate the first
             // thread that enters it, while letting the second one through.
             // This ensures that every node gets processed only once, and not
             // before both of its children are processed.
             if ( Kokkos::atomic_compare_exchange_strong(
-                     &_flags( node - _root ), 0, 1 ) )
+                     &_flags( node_index ), 0, 1 ) )
                 break;
 
             // Internal node bounding boxes are unitialized hence the
@@ -195,7 +213,7 @@ class CalculateBoundingBoxesFunctor
             node->bounding_box = node->children.first->bounding_box;
             expand( node->bounding_box, node->children.second->bounding_box );
 
-            node = node->parent;
+            node = _root + _parents( node_index + _shift );
         }
         // NOTE: could check that bounding box of the root node is indeed the
         // union of the two children.
@@ -207,6 +225,8 @@ class CalculateBoundingBoxesFunctor
     // Use int instead of bool because CAS (Compare And Swap) on CUDA does not
     // support boolean
     Kokkos::View<int *, DeviceType> _flags;
+    Kokkos::View<int *, DeviceType> _parents;
+    int _shift;
 };
 
 template <typename DeviceType>
@@ -265,14 +285,15 @@ template <typename DeviceType>
 Node *TreeConstruction<DeviceType>::generateHierarchy(
     Kokkos::View<unsigned int *, DeviceType> sorted_morton_codes,
     Kokkos::View<Node *, DeviceType> leaf_nodes,
-    Kokkos::View<Node *, DeviceType> internal_nodes )
+    Kokkos::View<Node *, DeviceType> internal_nodes,
+    Kokkos::View<int *, DeviceType> parents )
 {
     auto const n = sorted_morton_codes.extent( 0 );
     Kokkos::parallel_for(
         DTK_MARK_REGION( "generate_hierarchy" ),
         Kokkos::RangePolicy<ExecutionSpace>( 0, n - 1 ),
         GenerateHierarchyFunctor<DeviceType>( sorted_morton_codes, leaf_nodes,
-                                              internal_nodes ) );
+                                              internal_nodes, parents ) );
     Kokkos::fence();
     // returns a pointer to the root node of the tree
     return internal_nodes.data();
@@ -281,14 +302,15 @@ Node *TreeConstruction<DeviceType>::generateHierarchy(
 template <typename DeviceType>
 void TreeConstruction<DeviceType>::calculateBoundingBoxes(
     Kokkos::View<Node *, DeviceType> leaf_nodes,
-    Kokkos::View<Node *, DeviceType> internal_nodes )
+    Kokkos::View<Node *, DeviceType> internal_nodes,
+    Kokkos::View<int *, DeviceType> parents )
 {
     auto const n = leaf_nodes.extent( 0 );
     Node *root = internal_nodes.data();
     Kokkos::parallel_for(
         DTK_MARK_REGION( "calculate_bounding_boxes" ),
         Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
-        CalculateBoundingBoxesFunctor<DeviceType>( leaf_nodes, root ) );
+        CalculateBoundingBoxesFunctor<DeviceType>( leaf_nodes, root, parents ) );
     Kokkos::fence();
 }
 

@@ -118,14 +118,18 @@ BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
     Details::TreeConstruction<DeviceType>::initializeLeafNodes(
         permutation_indices, primitives, _leaf_nodes );
 
+    Kokkos::View<int *, DeviceType> parents(
+          Kokkos::ViewAllocateWithoutInitializing( "parents" ),
+          2 * size() - 1 );
+
     // generate bounding volume hierarchy
     Details::TreeConstruction<DeviceType>::generateHierarchy(
-        morton_indices, _leaf_nodes, _internal_nodes );
+        morton_indices, _leaf_nodes, _internal_nodes, parents );
 
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
     Details::TreeConstruction<DeviceType>::calculateBoundingBoxes(
-        _leaf_nodes, _internal_nodes );
+        _leaf_nodes, _internal_nodes, parents );
 }
 
 } // namespace DataTransferKit
