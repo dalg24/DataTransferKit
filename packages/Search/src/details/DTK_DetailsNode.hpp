@@ -22,9 +22,9 @@ struct Node
     KOKKOS_INLINE_FUNCTION
     Node() = default;
 
-    Node *parent = nullptr;
     Kokkos::pair<Node *, Node *> children = {nullptr, nullptr};
     Box bounding_box;
+    Node *parent = nullptr;
 };
 } // namespace DataTransferKit
 
