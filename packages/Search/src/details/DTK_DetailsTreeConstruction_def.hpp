@@ -109,7 +109,7 @@ class GenerateHierarchyFunctor
         , _leaf_nodes( leaf_nodes )
         , _internal_nodes( internal_nodes )
         , _parents( parents )
-        , _shift( leaf_nodes.extent( 0 ) )
+        , _shift( internal_nodes.extent( 0 ) )
     {
     }
 
@@ -138,12 +138,12 @@ class GenerateHierarchyFunctor
         if ( split == first )
         {
             childA = &_leaf_nodes[split];
-            _parents( split ) = i;
+            _parents( split + _shift ) = i;
         }
         else
         {
             childA = &_internal_nodes[split];
-            _parents( split + _shift ) = i;
+            _parents( split ) = i;
         }
 
         // Select childB.
@@ -152,12 +152,12 @@ class GenerateHierarchyFunctor
         if ( split + 1 == last )
         {
             childB = &_leaf_nodes[split + 1];
-            _parents( split + 1 ) = i;
+            _parents( split + 1 + _shift) = i;
         }
         else
         {
             childB = &_internal_nodes[split + 1];
-            _parents( split + 1 + _shift ) = i;
+            _parents( split + 1 ) = i;
         }
 
         // Record parent-child relationships.
@@ -178,15 +178,12 @@ template <typename DeviceType>
 class CalculateBoundingBoxesFunctor
 {
   public:
-    CalculateBoundingBoxesFunctor( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                                   Node *root, Kokkos::View<int *, DeviceType> parents,
-                                   Kokkos::View<Box *, DeviceType> bounding_volumes )
-        : _leaf_nodes( leaf_nodes )
-        , _root( root )
+    CalculateBoundingBoxesFunctor( Node *root, Kokkos::View<int *, DeviceType> parents,
+                                   Kokkos::View<Box *, DeviceType> bounding_volumes, size_t n )
+        : _root( root )
         , _flags( Kokkos::ViewAllocateWithoutInitializing( "flags" ),
-                  leaf_nodes.extent( 0 ) - 1 )
+                  n )
         , _parents( parents )
-        , _shift( leaf_nodes.extent( 0 ) )
         , _bounding_volumes( bounding_volumes )
     {
         // Initialize flags to zero
@@ -201,13 +198,12 @@ class CalculateBoundingBoxesFunctor
         // bounding box has already been computed (bounding box of the scene)
         while ( node != _root )
         {
-            int node_index = node - _root;
             // Use an atomic flag per internal node to terminate the first
             // thread that enters it, while letting the second one through.
             // This ensures that every node gets processed only once, and not
             // before both of its children are processed.
             if ( Kokkos::atomic_compare_exchange_strong(
-                     &_flags( node_index ), 0, 1 ) )
+                     &_flags( node - _root ), 0, 1 ) )
                 break;
 
             // Internal node bounding boxes are unitialized hence the
@@ -215,20 +211,18 @@ class CalculateBoundingBoxesFunctor
             _bounding_volumes( node - _root ) = _bounding_volumes( node->children.first - _root );
             expand( _bounding_volumes( node - _root ), _bounding_volumes( node->children.second - _root ) );
 
-            node = _root + _parents( node_index + _shift );
+            node = _root + _parents( node - _root );
         }
         // NOTE: could check that bounding box of the root node is indeed the
         // union of the two children.
     }
 
   private:
-    Kokkos::View<Node *, DeviceType> _leaf_nodes;
     Node *_root;
     // Use int instead of bool because CAS (Compare And Swap) on CUDA does not
     // support boolean
     Kokkos::View<int *, DeviceType> _flags;
     Kokkos::View<int *, DeviceType> _parents;
-    int _shift;
     Kokkos::View<Box *, DeviceType> _bounding_volumes;
 };
 
@@ -310,12 +304,13 @@ void TreeConstruction<DeviceType>::calculateBoundingBoxes(
     Kokkos::View<int *, DeviceType> parents,
     Kokkos::View<Box *, DeviceType> bounding_volumes )
 {
-    auto const n = leaf_nodes.extent( 0 );
+    auto const begin = internal_nodes.extent( 0 );
+    auto const end = begin + leaf_nodes.extent( 0 );
     Node *root = internal_nodes.data();
     Kokkos::parallel_for(
         DTK_MARK_REGION( "calculate_bounding_boxes" ),
-        Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
-        CalculateBoundingBoxesFunctor<DeviceType>( leaf_nodes, root, parents, bounding_volumes ) );
+        Kokkos::RangePolicy<ExecutionSpace>( begin, end ),
+        CalculateBoundingBoxesFunctor<DeviceType>( root, parents, bounding_volumes, begin ) );
     Kokkos::fence();
 }
 
