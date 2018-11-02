@@ -85,7 +85,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
         Node const *node = stack.top();
         stack.pop();
 
-        if ( TreeTraversal<DeviceType>::isLeaf( node ) )
+        if ( bvh.isLeaf( node ) )
         {
             insert( bvh.getLeafPermutationIndex( node ) );
             count++;
@@ -165,7 +165,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
         if ( node_distance < radius )
         {
-            if ( TreeTraversal<DeviceType>::isLeaf( node ) )
+            if ( bvh.isLeaf( node ) )
             {
                 int const leaf_index =
                     bvh.getLeafPermutationIndex( node );
