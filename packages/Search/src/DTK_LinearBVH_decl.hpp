@@ -40,14 +40,14 @@ class BoundingVolumeHierarchy
     KOKKOS_INLINE_FUNCTION
     size_type size() const { return _size; }
 
-    Kokkos::View<Node *, DeviceType> getLeafNodes()
-    { return Kokkos::subview( _leaf_and_internal_nodes, std::make_pair(size_t(0), _size) ); }
-
     Kokkos::View<Node *, DeviceType> getInternalNodes()
-    { return Kokkos::subview( _leaf_and_internal_nodes, std::make_pair(_size, _size > 0 ? 2 * _size - 1 : 0) ); }
+    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(size_t(0), _size > 0 ? _size - 1 : 0) ); }
+
+    Kokkos::View<Node *, DeviceType> getLeafNodes()
+    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(_size > 0 ? _size - 1 : 0, _size > 0 ? 2 * _size - 1 : 0) ); }
 
     KOKKOS_INLINE_FUNCTION
-    Node *getRoot() const { return _leaf_and_internal_nodes.data() + (size() > 1 ? size() : 0); }
+    Node *getRoot() const { return _internal_and_leaf_nodes.data(); }
 
     KOKKOS_INLINE_FUNCTION
     bool empty() const { return size() == 0; }
@@ -76,7 +76,7 @@ class BoundingVolumeHierarchy
     friend struct Details::TreeTraversal<DeviceType>;
 
     size_t _size;
-    Kokkos::View<Node *, DeviceType> _leaf_and_internal_nodes;
+    Kokkos::View<Node *, DeviceType> _internal_and_leaf_nodes;
 };
 
 template <typename DeviceType>
@@ -87,8 +87,8 @@ template <typename Primitives>
 BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
     Primitives const &primitives )
     : _size( primitives.extent( 0 ) )
-    , _leaf_and_internal_nodes(
-          Kokkos::ViewAllocateWithoutInitializing( "leaf_and_internal_nodes" ),
+    , _internal_and_leaf_nodes(
+          Kokkos::ViewAllocateWithoutInitializing( "internal_and_leaf_nodes" ),
           _size > 0 ? 2 * _size - 1 : 0 )
 {
     // FIXME lame placeholder for concept check
