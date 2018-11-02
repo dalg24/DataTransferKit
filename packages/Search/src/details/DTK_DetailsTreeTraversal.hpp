@@ -42,13 +42,11 @@ struct TreeTraversal
         return queryDispatch( Tag{}, bvh, pred, std::forward<Args>( args )... );
     }
 
-};
-
 // There are two (related) families of search: one using a spatial predicate and
 // one using nearest neighbours query (see boost::geometry::queries
 // documentation).
-template <typename DeviceType, typename Predicate, typename Insert>
-KOKKOS_FUNCTION int
+template <typename Predicate, typename Insert>
+KOKKOS_FUNCTION static int
 spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
               Predicate const &predicate, Insert const &insert )
 {
@@ -97,9 +95,9 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 }
 
 // query k nearest neighbours
-template <typename DeviceType, typename Distance, typename Insert,
+template <typename Distance, typename Insert,
           typename Buffer>
-KOKKOS_FUNCTION int
+KOKKOS_FUNCTION static int
 nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
               Distance const &distance, std::size_t k, Insert const &insert,
               Buffer const &buffer )
@@ -219,8 +217,8 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     return heap.size();
 }
 
-template <typename DeviceType, typename Predicate, typename Insert>
-KOKKOS_INLINE_FUNCTION int
+template <typename Predicate, typename Insert>
+KOKKOS_INLINE_FUNCTION static int
 queryDispatch( SpatialPredicateTag,
                BoundingVolumeHierarchy<DeviceType> const &bvh,
                Predicate const &pred, Insert const &insert )
@@ -228,9 +226,9 @@ queryDispatch( SpatialPredicateTag,
     return spatialQuery( bvh, pred, insert );
 }
 
-template <typename DeviceType, typename Predicate, typename Insert,
+template <typename Predicate, typename Insert,
           typename Buffer>
-KOKKOS_INLINE_FUNCTION int queryDispatch(
+KOKKOS_INLINE_FUNCTION static int queryDispatch(
     NearestPredicateTag, BoundingVolumeHierarchy<DeviceType> const &bvh,
     Predicate const &pred, Insert const &insert, Buffer const &buffer )
 {
@@ -242,6 +240,9 @@ KOKKOS_INLINE_FUNCTION int queryDispatch(
                          },
                          k, insert, buffer );
 }
+
+
+};
 
 } // namespace Details
 } // namespace DataTransferKit
