@@ -77,11 +77,9 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
     if ( bvh.size() == 1 )
     {
-        Node const *leaf = bvh.getRoot();
-        if ( predicate( bvh.getBoundingVolume( leaf ) ) )
+        if ( predicate( bvh.bounds() ) )
         {
-            int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
-            insert( leaf_index );
+            insert( 0 );
             return 1;
         }
         else
@@ -100,7 +98,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
         if ( TreeTraversal<DeviceType>::isLeaf( node ) )
         {
-            insert( TreeTraversal<DeviceType>::getIndex( node ) );
+            insert( bvh.getLeafPermutationIndex( node ) );
             count++;
         }
         else
@@ -131,10 +129,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
     if ( bvh.size() == 1 )
     {
-        Node const *leaf = bvh.getRoot();
-        int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
-        double const leaf_distance = distance( bvh.getBoundingVolume( leaf ) );
-        insert( leaf_index, leaf_distance );
+        insert( 0, distance( bvh.bounds() ) );
         return 1;
     }
 
@@ -184,7 +179,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
             if ( TreeTraversal<DeviceType>::isLeaf( node ) )
             {
                 int const leaf_index =
-                    TreeTraversal<DeviceType>::getIndex( node );
+                    bvh.getLeafPermutationIndex( node );
                 double const leaf_distance = node_distance;
                 if ( heap.size() < k )
                 {
