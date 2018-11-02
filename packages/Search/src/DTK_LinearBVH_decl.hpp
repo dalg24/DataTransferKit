@@ -61,6 +61,12 @@ class BoundingVolumeHierarchy
     }
 
     KOKKOS_INLINE_FUNCTION
+    bool isLeaf( Node const *node ) const
+    {
+        return ( node->children.first == nullptr );
+    }
+
+    KOKKOS_INLINE_FUNCTION
     bool empty() const { return size() == 0; }
 
     KOKKOS_INLINE_FUNCTION
