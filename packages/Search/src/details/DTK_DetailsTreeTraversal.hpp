@@ -51,17 +51,6 @@ struct TreeTraversal
         return ( node->children.first == nullptr );
     }
 
-    /**
-     * Return the index of the leaf node.
-     */
-    KOKKOS_INLINE_FUNCTION
-    static size_t getIndex( Node const *leaf )
-    {
-        static_assert( sizeof( size_t ) == sizeof( Node * ),
-                       "Conversion is a bad idea if these sizes do not match" );
-        return reinterpret_cast<size_t>( leaf->children.second );
-    }
-
 };
 
 // There are two (related) families of search: one using a spatial predicate and
