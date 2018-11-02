@@ -83,7 +83,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     if ( bvh.size() == 1 )
     {
         Node const *leaf = bvh.getRoot();
-        if ( predicate( TreeTraversal<DeviceType>::getBoundingVolume( bvh, leaf ) ) )
+        if ( predicate( bvh.getBoundingVolume( leaf ) ) )
         {
             int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
             insert( leaf_index );
@@ -113,7 +113,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
             for ( Node const *child :
                   {node->children.first, node->children.second} )
             {
-                if ( predicate( TreeTraversal<DeviceType>::getBoundingVolume( bvh, child ) ) )
+                if ( predicate( bvh.getBoundingVolume( child ) ) )
                 {
                     stack.push( child );
                 }
@@ -138,7 +138,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     {
         Node const *leaf = bvh.getRoot();
         int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
-        double const leaf_distance = distance( TreeTraversal<DeviceType>::getBoundingVolume( bvh, leaf ) );
+        double const leaf_distance = distance( bvh.getBoundingVolume( leaf ) );
         insert( leaf_index, leaf_distance );
         return 1;
     }
@@ -211,9 +211,9 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
                 // Insert children into the stack and make sure that the
                 // closest one ends on top.
                 Node const *left_child = node->children.first;
-                double const left_child_distance = distance( TreeTraversal<DeviceType>::getBoundingVolume( bvh, left_child ) );
+                double const left_child_distance = distance( bvh.getBoundingVolume( left_child ) );
                 Node const *right_child = node->children.second;
-                double const right_child_distance = distance( TreeTraversal<DeviceType>::getBoundingVolume( bvh, right_child ) );
+                double const right_child_distance = distance( bvh.getBoundingVolume( right_child ) );
                 if ( left_child_distance < right_child_distance )
                 {
                     // NOTE not really sure why but it performed better with
