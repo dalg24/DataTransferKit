@@ -179,13 +179,15 @@ class CalculateBoundingBoxesFunctor
 {
   public:
     CalculateBoundingBoxesFunctor( Kokkos::View<Node *, DeviceType> leaf_nodes,
-                                   Node *root, Kokkos::View<int *, DeviceType> parents )
+                                   Node *root, Kokkos::View<int *, DeviceType> parents,
+                                   Kokkos::View<Box *, DeviceType> bounding_volumes )
         : _leaf_nodes( leaf_nodes )
         , _root( root )
         , _flags( Kokkos::ViewAllocateWithoutInitializing( "flags" ),
                   leaf_nodes.extent( 0 ) - 1 )
         , _parents( parents )
         , _shift( leaf_nodes.extent( 0 ) )
+        , _bounding_volumes( bounding_volumes )
     {
         // Initialize flags to zero
         Kokkos::deep_copy( _flags, 0 );
@@ -210,8 +212,8 @@ class CalculateBoundingBoxesFunctor
 
             // Internal node bounding boxes are unitialized hence the
             // assignment operator below.
-            node->bounding_box = node->children.first->bounding_box;
-            expand( node->bounding_box, node->children.second->bounding_box );
+            _bounding_volumes( node - _root ) = _bounding_volumes( node->children.first - _root );
+            expand( _bounding_volumes( node - _root ), _bounding_volumes( node->children.second - _root ) );
 
             node = _root + _parents( node_index + _shift );
         }
@@ -227,6 +229,7 @@ class CalculateBoundingBoxesFunctor
     Kokkos::View<int *, DeviceType> _flags;
     Kokkos::View<int *, DeviceType> _parents;
     int _shift;
+    Kokkos::View<Box *, DeviceType> _bounding_volumes;
 };
 
 template <typename DeviceType>
@@ -262,7 +265,8 @@ template <typename DeviceType>
 void TreeConstruction<DeviceType>::initializeLeafNodes(
     Kokkos::View<size_t const *, DeviceType> indices,
     Kokkos::View<Box const *, DeviceType> bounding_boxes,
-    Kokkos::View<Node *, DeviceType> leaf_nodes )
+    Kokkos::View<Node *, DeviceType> leaf_nodes,
+    Kokkos::View<Box *, DeviceType> bounding_volumes )
 {
     auto const n = leaf_nodes.extent( 0 );
     DTK_REQUIRE( indices.extent( 0 ) == n );
@@ -274,7 +278,7 @@ void TreeConstruction<DeviceType>::initializeLeafNodes(
     Kokkos::parallel_for(
         DTK_MARK_REGION( "initialize_leaf_nodes" ),
         Kokkos::RangePolicy<ExecutionSpace>( 0, n ), KOKKOS_LAMBDA( int i ) {
-            leaf_nodes( i ).bounding_box = bounding_boxes( indices( i ) );
+            bounding_volumes( i + n - 1 ) = bounding_boxes( indices( i ) );
             leaf_nodes( i ).children = {
                 nullptr, reinterpret_cast<Node *>( indices( i ) )};
         } );
@@ -303,14 +307,15 @@ template <typename DeviceType>
 void TreeConstruction<DeviceType>::calculateBoundingBoxes(
     Kokkos::View<Node *, DeviceType> leaf_nodes,
     Kokkos::View<Node *, DeviceType> internal_nodes,
-    Kokkos::View<int *, DeviceType> parents )
+    Kokkos::View<int *, DeviceType> parents,
+    Kokkos::View<Box *, DeviceType> bounding_volumes )
 {
     auto const n = leaf_nodes.extent( 0 );
     Node *root = internal_nodes.data();
     Kokkos::parallel_for(
         DTK_MARK_REGION( "calculate_bounding_boxes" ),
         Kokkos::RangePolicy<ExecutionSpace>( 0, n ),
-        CalculateBoundingBoxesFunctor<DeviceType>( leaf_nodes, root, parents ) );
+        CalculateBoundingBoxesFunctor<DeviceType>( leaf_nodes, root, parents, bounding_volumes ) );
     Kokkos::fence();
 }
 

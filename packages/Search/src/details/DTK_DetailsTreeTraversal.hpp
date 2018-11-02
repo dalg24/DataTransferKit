@@ -70,6 +70,12 @@ struct TreeTraversal
     {
         return bvh.getRoot();
     }
+
+    KOKKOS_INLINE_FUNCTION
+    static typename BoundingVolumeHierarchy<DeviceType>::bounding_volume_type const &getBoundingVolume( BoundingVolumeHierarchy<DeviceType> const &bvh, Node const *node )
+    {
+        return bvh.getBoundingVolume( node );
+    }
 };
 
 // There are two (related) families of search: one using a spatial predicate and
@@ -86,7 +92,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     if ( bvh.size() == 1 )
     {
         Node const *leaf = TreeTraversal<DeviceType>::getRoot( bvh );
-        if ( predicate( leaf ) )
+        if ( predicate( TreeTraversal<DeviceType>::getBoundingVolume( bvh, leaf ) ) )
         {
             int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
             insert( leaf_index );
@@ -116,7 +122,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
             for ( Node const *child :
                   {node->children.first, node->children.second} )
             {
-                if ( predicate( child ) )
+                if ( predicate( TreeTraversal<DeviceType>::getBoundingVolume( bvh, child ) ) )
                 {
                     stack.push( child );
                 }
@@ -141,7 +147,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     {
         Node const *leaf = TreeTraversal<DeviceType>::getRoot( bvh );
         int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
-        double const leaf_distance = distance( leaf );
+        double const leaf_distance = distance( TreeTraversal<DeviceType>::getBoundingVolume( bvh, leaf ) );
         insert( leaf_index, leaf_distance );
         return 1;
     }
@@ -214,9 +220,9 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
                 // Insert children into the stack and make sure that the
                 // closest one ends on top.
                 Node const *left_child = node->children.first;
-                double const left_child_distance = distance( left_child );
+                double const left_child_distance = distance( TreeTraversal<DeviceType>::getBoundingVolume( bvh, left_child ) );
                 Node const *right_child = node->children.second;
-                double const right_child_distance = distance( right_child );
+                double const right_child_distance = distance( TreeTraversal<DeviceType>::getBoundingVolume( bvh, right_child ) );
                 if ( left_child_distance < right_child_distance )
                 {
                     // NOTE not really sure why but it performed better with
@@ -270,8 +276,8 @@ KOKKOS_INLINE_FUNCTION int queryDispatch(
     auto const geometry = pred._geometry;
     auto const k = pred._k;
     return nearestQuery( bvh,
-                         [geometry]( Node const *node ) {
-                             return distance( geometry, node->bounding_box );
+                         [geometry]( typename BoundingVolumeHierarchy<DeviceType>::bounding_volume_type const &other ) {
+                             return distance( geometry, other );
                          },
                          k, insert, buffer );
 }
