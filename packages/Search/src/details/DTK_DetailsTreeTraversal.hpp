@@ -62,15 +62,6 @@ struct TreeTraversal
         return reinterpret_cast<size_t>( leaf->children.second );
     }
 
-    /**
-     * Return the root node of the BVH.
-     */
-    KOKKOS_INLINE_FUNCTION
-    static Node const *getRoot( BoundingVolumeHierarchy<DeviceType> const &bvh )
-    {
-        return bvh.getRoot();
-    }
-
     KOKKOS_INLINE_FUNCTION
     static typename BoundingVolumeHierarchy<DeviceType>::bounding_volume_type const &getBoundingVolume( BoundingVolumeHierarchy<DeviceType> const &bvh, Node const *node )
     {
