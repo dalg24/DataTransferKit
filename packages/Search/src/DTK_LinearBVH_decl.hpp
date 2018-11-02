@@ -53,6 +53,14 @@ class BoundingVolumeHierarchy
     bounding_volume_type &getBoundingVolume( Node const *node) const { return _bounding_volumes( node - getRoot() ); }
 
     KOKKOS_INLINE_FUNCTION
+    size_t getLeafPermutationIndex( Node const *leaf ) const
+    {
+        static_assert( sizeof( size_t ) == sizeof( Node * ),
+                       "Conversion is a bad idea if these sizes do not match" );
+        return reinterpret_cast<size_t>( leaf->children.second );
+    }
+
+    KOKKOS_INLINE_FUNCTION
     bool empty() const { return size() == 0; }
 
     KOKKOS_INLINE_FUNCTION
