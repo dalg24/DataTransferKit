@@ -91,7 +91,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
     if ( bvh.size() == 1 )
     {
-        Node const *leaf = TreeTraversal<DeviceType>::getRoot( bvh );
+        Node const *leaf = bvh.getRoot();
         if ( predicate( TreeTraversal<DeviceType>::getBoundingVolume( bvh, leaf ) ) )
         {
             int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
@@ -104,7 +104,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
     Stack<Node const *> stack;
 
-    stack.emplace( TreeTraversal<DeviceType>::getRoot( bvh ) );
+    stack.emplace( bvh.getRoot() );
     int count = 0;
 
     while ( !stack.empty() )
@@ -145,7 +145,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
     if ( bvh.size() == 1 )
     {
-        Node const *leaf = TreeTraversal<DeviceType>::getRoot( bvh );
+        Node const *leaf = bvh.getRoot();
         int const leaf_index = TreeTraversal<DeviceType>::getIndex( leaf );
         double const leaf_distance = distance( TreeTraversal<DeviceType>::getBoundingVolume( bvh, leaf ) );
         insert( leaf_index, leaf_distance );
@@ -185,7 +185,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
     Stack<PairNodePtrDistance> stack;
     // Do not bother computing the distance to the root node since it is
     // immediately popped out of the stack and processed.
-    stack.emplace( TreeTraversal<DeviceType>::getRoot( bvh ), 0. );
+    stack.emplace( bvh.getRoot(), 0. );
 
     while ( !stack.empty() )
     {
