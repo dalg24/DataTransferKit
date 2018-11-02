@@ -68,10 +68,7 @@ struct TreeTraversal
     KOKKOS_INLINE_FUNCTION
     static Node const *getRoot( BoundingVolumeHierarchy<DeviceType> const &bvh )
     {
-        if ( bvh.empty() )
-            return nullptr;
-        return ( bvh.size() > 1 ? bvh._internal_nodes : bvh._leaf_nodes )
-            .data();
+        return bvh.getRoot();
     }
 };
 
