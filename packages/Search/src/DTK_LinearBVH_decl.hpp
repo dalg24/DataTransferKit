@@ -40,32 +40,6 @@ class BoundingVolumeHierarchy
     KOKKOS_INLINE_FUNCTION
     size_type size() const { return _size; }
 
-    Kokkos::View<Node *, DeviceType> getInternalNodes()
-    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(size_t(0), _size > 0 ? _size - 1 : 0) ); }
-
-    Kokkos::View<Node *, DeviceType> getLeafNodes()
-    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(_size > 0 ? _size - 1 : 0, _size > 0 ? 2 * _size - 1 : 0) ); }
-
-    KOKKOS_INLINE_FUNCTION
-    Node *getRoot() const { return _internal_and_leaf_nodes.data(); }
-
-    KOKKOS_INLINE_FUNCTION
-    bounding_volume_type &getBoundingVolume( Node const *node) const { return _bounding_volumes( node - getRoot() ); }
-
-    KOKKOS_INLINE_FUNCTION
-    size_t getLeafPermutationIndex( Node const *leaf ) const
-    {
-        static_assert( sizeof( size_t ) == sizeof( Node * ),
-                       "Conversion is a bad idea if these sizes do not match" );
-        return reinterpret_cast<size_t>( leaf->children.second );
-    }
-
-    KOKKOS_INLINE_FUNCTION
-    bool isLeaf( Node const *node ) const
-    {
-        return ( node->children.first == nullptr );
-    }
-
     KOKKOS_INLINE_FUNCTION
     bool empty() const { return size() == 0; }
 
@@ -90,6 +64,34 @@ class BoundingVolumeHierarchy
 
   private:
     friend struct Details::TreeTraversal<DeviceType>;
+
+    Kokkos::View<Node *, DeviceType> getInternalNodes()
+    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(size_t(0), _size > 0 ? _size - 1 : 0) ); }
+
+    Kokkos::View<Node *, DeviceType> getLeafNodes()
+    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(_size > 0 ? _size - 1 : 0, _size > 0 ? 2 * _size - 1 : 0) ); }
+
+
+    KOKKOS_INLINE_FUNCTION
+    Node *getRoot() const { return _internal_and_leaf_nodes.data(); }
+
+    KOKKOS_INLINE_FUNCTION
+    bounding_volume_type &getBoundingVolume( Node const *node) const { return _bounding_volumes( node - getRoot() ); }
+
+    KOKKOS_INLINE_FUNCTION
+    size_t getLeafPermutationIndex( Node const *leaf ) const
+    {
+        static_assert( sizeof( size_t ) == sizeof( Node * ),
+                       "Conversion is a bad idea if these sizes do not match" );
+        return reinterpret_cast<size_t>( leaf->children.second );
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    bool isLeaf( Node const *node ) const
+    {
+        return ( node->children.first == nullptr );
+    }
+
 
     size_t _size;
     Kokkos::View<Node *, DeviceType> _internal_and_leaf_nodes;
