@@ -42,15 +42,6 @@ struct TreeTraversal
         return queryDispatch( Tag{}, bvh, pred, std::forward<Args>( args )... );
     }
 
-    /**
-     * Return true if the node is a leaf.
-     */
-    KOKKOS_INLINE_FUNCTION
-    static bool isLeaf( Node const *node )
-    {
-        return ( node->children.first == nullptr );
-    }
-
 };
 
 // There are two (related) families of search: one using a spatial predicate and
