@@ -76,7 +76,7 @@ class BoundingVolumeHierarchy
     Node *getRoot() const { return _internal_and_leaf_nodes.data(); }
 
     KOKKOS_INLINE_FUNCTION
-    bounding_volume_type &getBoundingVolume( Node const *node) const { return _bounding_volumes( node - getRoot() ); }
+    bounding_volume_type &getBoundingVolume( Node const *node) const { return const_cast<bounding_volume_type&>(node->bounding_box); }
 
     KOKKOS_INLINE_FUNCTION
     size_t getLeafPermutationIndex( Node const *leaf ) const
@@ -95,7 +95,6 @@ class BoundingVolumeHierarchy
 
     size_t _size;
     Kokkos::View<Node *, DeviceType> _internal_and_leaf_nodes;
-    Kokkos::View<bounding_volume_type *, DeviceType> _bounding_volumes;
 };
 
 template <typename DeviceType>
@@ -109,9 +108,6 @@ BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
     , _internal_and_leaf_nodes(
           Kokkos::ViewAllocateWithoutInitializing( "internal_and_leaf_nodes" ),
           _size > 0 ? 2 * _size - 1 : 0 )
-    , _bounding_volumes(
-          Kokkos::ViewAllocateWithoutInitializing( "bounding_volumes" ),
-          _internal_and_leaf_nodes.extent( 0 ) )
 {
     // FIXME lame placeholder for concept check
     static_assert( Kokkos::is_view<Primitives>::value, "must pass a view" );
@@ -125,7 +121,7 @@ BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
     {
         Kokkos::View<size_t *, DeviceType> permutation_indices( "permute", 1 );
         Details::TreeConstruction<DeviceType>::initializeLeafNodes(
-            permutation_indices, primitives, getLeafNodes(), _bounding_volumes );
+            permutation_indices, primitives, getLeafNodes() );
         return;
     }
 
@@ -144,7 +140,7 @@ BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
     auto permutation_indices = Details::sortObjects( morton_indices );
 
     Details::TreeConstruction<DeviceType>::initializeLeafNodes(
-        permutation_indices, primitives, getLeafNodes(), _bounding_volumes );
+        permutation_indices, primitives, getLeafNodes() );
 
     Kokkos::View<int *, DeviceType> parents(
           Kokkos::ViewAllocateWithoutInitializing( "parents" ),
@@ -157,7 +153,7 @@ BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
     Details::TreeConstruction<DeviceType>::calculateBoundingBoxes(
-        getLeafNodes(), getInternalNodes(), parents, _bounding_volumes );
+        getLeafNodes(), getInternalNodes(), parents );
 }
 
 } // namespace DataTransferKit
