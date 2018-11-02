@@ -62,11 +62,6 @@ struct TreeTraversal
         return reinterpret_cast<size_t>( leaf->children.second );
     }
 
-    KOKKOS_INLINE_FUNCTION
-    static typename BoundingVolumeHierarchy<DeviceType>::bounding_volume_type const &getBoundingVolume( BoundingVolumeHierarchy<DeviceType> const &bvh, Node const *node )
-    {
-        return bvh.getBoundingVolume( node );
-    }
 };
 
 // There are two (related) families of search: one using a spatial predicate and
