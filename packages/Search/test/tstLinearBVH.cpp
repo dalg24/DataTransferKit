@@ -339,10 +339,11 @@ TEUCHOS_UNIT_TEST_TEMPLATE_1_DECL( LinearBVH, miscellaneous, DeviceType )
     } );
     auto const empty_bvh = makeBvh<DeviceType>( {} );
 
-    TEST_ASSERT(
-        bvh.getRoot() );
-    // getRoot() returns nullptr when the tree is empty
-    TEST_ASSERT( !empty_bvh.getRoot() );
+    // getRoot() is a private function member now
+    //TEST_ASSERT(
+    //    bvh.getRoot() );
+    //// getRoot() returns nullptr when the tree is empty
+    //TEST_ASSERT( !empty_bvh.getRoot() );
 
     // Batched queries BVH::query( Kokkos::View<Query *, ...>, ... ) returns
     // early if the tree is empty.  Below we ensure that a direct call to the
