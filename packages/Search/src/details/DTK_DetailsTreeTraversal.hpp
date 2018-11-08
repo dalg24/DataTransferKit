@@ -55,7 +55,7 @@ spatialQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
     if ( bvh.size() == 1 )
     {
-        if ( predicate( bvh.bounds() ) )
+        if ( predicate( bvh.getBoundingVolume(bvh.getRoot()) ) )
         {
             insert( 0 );
             return 1;
@@ -107,7 +107,7 @@ nearestQuery( BoundingVolumeHierarchy<DeviceType> const &bvh,
 
     if ( bvh.size() == 1 )
     {
-        insert( 0, distance( bvh.bounds() ) );
+        insert( 0, distance( bvh.getBoundingVolume(bvh.getRoot()) ) );
         return 1;
     }
 
