@@ -66,10 +66,10 @@ class BoundingVolumeHierarchy
     friend struct Details::TreeTraversal<DeviceType>;
 
     Kokkos::View<Node *, DeviceType> getInternalNodes()
-    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(size_t(0), _size > 0 ? _size - 1 : 0) ); }
+    { assert( !empty() ); return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(size_type{0}, size() - 1) ); }
 
     Kokkos::View<Node *, DeviceType> getLeafNodes()
-    { return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(_size > 0 ? _size - 1 : 0, _size > 0 ? 2 * _size - 1 : 0) ); }
+    { assert( !empty() ); return Kokkos::subview( _internal_and_leaf_nodes, std::make_pair(size() - 1, 2 * size() - 1) ); }
 
 
     KOKKOS_INLINE_FUNCTION
