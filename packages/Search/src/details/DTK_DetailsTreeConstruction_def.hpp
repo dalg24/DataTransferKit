@@ -200,6 +200,7 @@ class CalculateInternalNodesBoundingVolumesFunctor
 
             // Internal node bounding boxes are unitialized hence the
             // assignment operator below.
+            // NOTE: accessing Node::bounding_box is not ideal but I was reluctant to pass the the bounding volume hierarchy to generateHierarchy()
             node->bounding_box = (node->children.first)->bounding_box;
             expand( node->bounding_box, (node->children.second)->bounding_box );
 
