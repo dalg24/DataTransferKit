@@ -175,10 +175,10 @@ class GenerateHierarchyFunctor
 };
 
 template <typename DeviceType>
-class CalculateBoundingBoxesFunctor
+class CalculateInternalNodesBoundingVolumesFunctor
 {
   public:
-    CalculateBoundingBoxesFunctor( Node *root, Kokkos::View<int const *, DeviceType> parents,
+    CalculateInternalNodesBoundingVolumesFunctor( Node *root, Kokkos::View<int const *, DeviceType> parents,
                                    size_t n )
         : _root( root )
         , _flags( Kokkos::ViewAllocateWithoutInitializing( "flags" ),
@@ -306,7 +306,7 @@ void TreeConstruction<DeviceType>::calculateInternalNodesBoundingVolumes(
     Kokkos::parallel_for(
         DTK_MARK_REGION( "calculate_bounding_boxes" ),
         Kokkos::RangePolicy<ExecutionSpace>( begin, end ),
-        CalculateBoundingBoxesFunctor<DeviceType>( root, parents, begin ) );
+        CalculateInternalNodesBoundingVolumesFunctor<DeviceType>( root, parents, begin ) );
     Kokkos::fence();
 }
 
