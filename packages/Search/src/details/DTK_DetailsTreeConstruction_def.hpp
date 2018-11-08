@@ -179,10 +179,10 @@ class CalculateInternalNodesBoundingVolumesFunctor
 {
   public:
     CalculateInternalNodesBoundingVolumesFunctor( Node *root, Kokkos::View<int const *, DeviceType> parents,
-                                   size_t n )
+                                   size_t n_internal_nodes )
         : _root( root )
         , _flags( Kokkos::ViewAllocateWithoutInitializing( "flags" ),
-                  n )
+                  n_internal_nodes )
         , _parents( parents )
     {
         // Initialize flags to zero
