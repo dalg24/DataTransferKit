@@ -295,7 +295,7 @@ Node *TreeConstruction<DeviceType>::generateHierarchy(
 }
 
 template <typename DeviceType>
-void TreeConstruction<DeviceType>::calculateBoundingBoxes(
+void TreeConstruction<DeviceType>::calculateInternalNodesBoundingVolumes(
     Kokkos::View<Node *, DeviceType> leaf_nodes,
     Kokkos::View<Node *, DeviceType> internal_nodes,
     Kokkos::View<int const *, DeviceType> parents )

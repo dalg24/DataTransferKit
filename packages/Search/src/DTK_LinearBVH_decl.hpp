@@ -152,7 +152,7 @@ BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
 
     // calculate bounding box for each internal node by walking the hierarchy
     // toward the root
-    Details::TreeConstruction<DeviceType>::calculateBoundingBoxes(
+    Details::TreeConstruction<DeviceType>::calculateInternalNodesBoundingVolumes(
         getLeafNodes(), getInternalNodes(), parents );
 }
 
