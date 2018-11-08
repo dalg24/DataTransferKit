@@ -150,8 +150,8 @@ BoundingVolumeHierarchy<DeviceType>::BoundingVolumeHierarchy(
     Details::TreeConstruction<DeviceType>::generateHierarchy(
         morton_indices, getLeafNodes(), getInternalNodes(), parents );
 
-    // calculate bounding box for each internal node by walking the hierarchy
-    // toward the root
+    // calculate bounding volume for each internal node by walking the
+    // hierarchy toward the root
     Details::TreeConstruction<DeviceType>::calculateInternalNodesBoundingVolumes(
         getLeafNodes(), getInternalNodes(), parents );
 }
