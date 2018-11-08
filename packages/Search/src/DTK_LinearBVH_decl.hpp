@@ -75,6 +75,7 @@ class BoundingVolumeHierarchy
     KOKKOS_INLINE_FUNCTION
     Node *getRoot() const { return _internal_and_leaf_nodes.data(); }
 
+    // FIXME not proud of that one
     KOKKOS_INLINE_FUNCTION
     bounding_volume_type &getBoundingVolume( Node const *node) const { return const_cast<bounding_volume_type&>(node->bounding_box); }
 
