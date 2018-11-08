@@ -132,38 +132,31 @@ class GenerateHierarchyFunctor
         int split = TreeConstruction<DeviceType>::findSplit(
             _sorted_morton_codes, first, last );
 
-        // Select childA.
+        // Select first child and record parent-child relationship.
 
-        Node *childA;
         if ( split == first )
         {
-            childA = &_leaf_nodes[split];
+            _internal_nodes( i ).children.first = &_leaf_nodes( split );
             _parents( split + _shift ) = i;
         }
         else
         {
-            childA = &_internal_nodes[split];
+            _internal_nodes( i ).children.first = &_internal_nodes( split );
             _parents( split ) = i;
         }
 
-        // Select childB.
+        // Select second child and record parent-child relationship.
 
-        Node *childB;
         if ( split + 1 == last )
         {
-            childB = &_leaf_nodes[split + 1];
+            _internal_nodes( i ).children.second = &_leaf_nodes( split + 1 );
             _parents( split + 1 + _shift) = i;
         }
         else
         {
-            childB = &_internal_nodes[split + 1];
+            _internal_nodes( i ).children.second = &_internal_nodes( split + 1 );
             _parents( split + 1 ) = i;
         }
-
-        // Record parent-child relationships.
-
-        _internal_nodes[i].children.first = childA;
-        _internal_nodes[i].children.second = childB;
     }
 
   private:
