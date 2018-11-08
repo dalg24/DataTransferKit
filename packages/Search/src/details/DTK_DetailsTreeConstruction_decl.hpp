@@ -62,7 +62,7 @@ struct TreeConstruction
     static void
     calculateBoundingBoxes( Kokkos::View<Node *, DeviceType> leaf_nodes,
                             Kokkos::View<Node *, DeviceType> internal_nodes,
-                            Kokkos::View<int *, DeviceType> parents );
+                            Kokkos::View<int const *, DeviceType> parents );
 
     KOKKOS_INLINE_FUNCTION
     static int

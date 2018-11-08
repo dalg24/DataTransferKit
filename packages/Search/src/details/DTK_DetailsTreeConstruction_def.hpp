@@ -178,7 +178,7 @@ template <typename DeviceType>
 class CalculateBoundingBoxesFunctor
 {
   public:
-    CalculateBoundingBoxesFunctor( Node *root, Kokkos::View<int *, DeviceType> parents,
+    CalculateBoundingBoxesFunctor( Node *root, Kokkos::View<int const *, DeviceType> parents,
                                    size_t n )
         : _root( root )
         , _flags( Kokkos::ViewAllocateWithoutInitializing( "flags" ),
@@ -221,7 +221,7 @@ class CalculateBoundingBoxesFunctor
     // Use int instead of bool because CAS (Compare And Swap) on CUDA does not
     // support boolean
     Kokkos::View<int *, DeviceType> _flags;
-    Kokkos::View<int *, DeviceType> _parents;
+    Kokkos::View<int const *, DeviceType> _parents;
 };
 
 template <typename DeviceType>
@@ -298,7 +298,7 @@ template <typename DeviceType>
 void TreeConstruction<DeviceType>::calculateBoundingBoxes(
     Kokkos::View<Node *, DeviceType> leaf_nodes,
     Kokkos::View<Node *, DeviceType> internal_nodes,
-    Kokkos::View<int *, DeviceType> parents )
+    Kokkos::View<int const *, DeviceType> parents )
 {
     auto const begin = internal_nodes.extent( 0 );
     auto const end = begin + leaf_nodes.extent( 0 );
